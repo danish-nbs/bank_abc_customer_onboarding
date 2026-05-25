@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Business Information | BankOnboard Analyst Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#f8f9ff",
+                        "outline": "#74777f",
+                        "on-secondary-fixed": "#001b3c",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-container": "#7f8997",
+                        "surface-variant": "#d3e4fe",
+                        "outline-variant": "#c4c6cf",
+                        "primary-fixed": "#d6e3ff",
+                        "surface-container-low": "#eff4ff",
+                        "on-background": "#0b1c30",
+                        "on-primary-container": "#708ab5",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-high": "#dce9ff",
+                        "tertiary-container": "#18222d",
+                        "surface-dim": "#cbdbf5",
+                        "secondary": "#325f9c",
+                        "tertiary-fixed": "#d9e3f2",
+                        "tertiary": "#030b15",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed": "#001b3d",
+                        "tertiary-fixed-dim": "#bdc7d6",
+                        "secondary-fixed": "#d5e3ff",
+                        "primary-container": "#002147",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#90bafd",
+                        "on-secondary": "#ffffff",
+                        "on-surface-variant": "#44474e",
+                        "on-surface": "#0b1c30",
+                        "surface-tint": "#465f88",
+                        "surface-container-highest": "#d3e4fe",
+                        "secondary-fixed-dim": "#a7c8ff",
+                        "background": "#f8f9ff",
+                        "primary-fixed-dim": "#aec7f6",
+                        "on-secondary-fixed-variant": "#114783",
+                        "inverse-primary": "#aec7f6",
+                        "on-tertiary-fixed": "#131c27",
+                        "surface-container": "#e5eeff",
+                        "primary": "#000a1e",
+                        "inverse-surface": "#213145",
+                        "surface-bright": "#f8f9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "stack-md": "16px",
+                        "container-max": "1440px",
+                        "stack-sm": "8px",
+                        "gutter": "24px",
+                        "stack-lg": "24px",
+                        "margin-desktop": "32px",
+                        "unit": "4px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "mono-md": ["JetBrains Mono"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "mono-md": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { background-color: #F8FAFC; }
+        .form-input-focus:focus {
+            border-color: #325f9c !important;
+            outline: none;
+            box-shadow: 0 0 0 1px #325f9c;
+        }
+    </style>
+</head>
+<body class="font-body-md text-on-surface flex h-screen overflow-hidden">
+<!-- Updated SideNavBar -->
+<aside class="flex flex-col h-screen p-4 space-y-2 bg-surface-container-low border-r border-outline-variant w-64 flex-shrink-0">
+<div class="mb-8 px-2">
+<h1 class="text-label-md font-label-md font-bold text-primary">Bank ABC Onboarding Platform</h1>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Enterprise KYC Portal</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-label-md font-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-secondary-container text-on-secondary-container rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="folder_shared">folder_shared</span>
+<span class="text-label-md font-label-md">Cases</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="corporate_fare">corporate_fare</span>
+<span class="text-label-md font-label-md">Entities</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="text-label-md font-label-md">Documents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-label-md font-label-md">Settings</span>
+</a>
+</nav>
+<!-- Updated Bottom Profile Section -->
+<div class="pt-4 border-t border-outline-variant mt-auto">
+<div class="flex items-center gap-3 px-2 py-1">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white overflow-hidden">
+<span class="material-symbols-outlined text-2xl" data-icon="account_circle">account_circle</span>
+</div>
+<div class="overflow-hidden">
+<p class="text-label-md font-label-md font-bold truncate text-on-surface">Jane Cooper</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant truncate">Senior Risk Analyst</p>
+</div>
+</div>
+</div>
+</aside>
+<div class="flex-1 flex flex-col min-w-0 bg-surface">
+<!-- TopNavBar (Shared Component) -->
+<header class="flex justify-between items-center w-full px-6 h-16 bg-surface border-b border-outline-variant">
+<div class="flex items-center gap-4">
+<span class="text-headline-sm font-headline-sm font-bold text-primary">Bank ABC Onboard Platform</span>
+<div class="h-6 w-px bg-outline-variant mx-2"></div>
+<span class="text-body-md font-medium text-on-surface-variant">KYC Analyst Workspace</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 hover:bg-surface-variant rounded-full transition-colors"><span class="material-symbols-outlined" data-icon="history">history</span></button>
+<button class="p-2 hover:bg-surface-variant rounded-full transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="p-2 hover:bg-surface-variant rounded-full transition-colors"><span class="material-symbols-outlined" data-icon="help">help</span></button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 overflow-y-auto p-gutter relative">
+<div class="max-w-[1000px] mx-auto pb-24">
+<!-- Navigation & Header -->
+<nav class="mb-stack-lg flex items-center gap-2">
+<a class="flex items-center text-secondary hover:underline group" href="#">
+<span class="material-symbols-outlined text-sm mr-1 group-hover:-translate-x-1 transition-transform" data-icon="arrow_back">arrow_back</span>
+<span class="text-label-md font-label-md">Back to Case Selection</span>
+</a>
+</nav>
+<div class="mb-stack-lg border-b border-outline-variant pb-6">
+<div class="flex justify-between items-end">
+<div>
+<h2 class="text-display-lg font-display-lg text-on-surface mb-2">Business Information</h2>
+<p class="text-body-lg font-body-lg text-on-surface-variant">Collect legal entity details and authorized signatory information for corporate onboarding.</p>
+</div>
+<div class="flex gap-2 mb-1">
+<span class="bg-secondary-container text-on-secondary-container text-label-md font-label-md px-3 py-1 rounded-full">Step 2 of 5</span>
+</div>
+</div>
+</div>
+<!-- Form Sections -->
+<div class="space-y-stack-lg">
+<!-- Section 1: Company Information -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+<div class="bg-surface-container-high px-6 py-3 border-b border-outline-variant">
+<h3 class="text-label-md font-label-md text-on-surface uppercase tracking-wider">Section 1: Company Information</h3>
+</div>
+<div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-stack-md">
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Legal Entity Name</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="e.g. Acme Corp Industries Ltd." type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Trade Name</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="e.g. Acme Global" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Company Registration Number</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md font-mono-md form-input-focus" placeholder="REG-12345678" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Tax ID / VAT Number</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md font-mono-md form-input-focus" placeholder="VAT-987654321" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Date of Incorporation</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" type="date"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Business Type</label>
+<select class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus bg-white">
+<option>Select Type</option>
+<option>LLC</option>
+<option>Sole Proprietorship</option>
+<option>Partnership</option>
+<option>Corporation</option>
+</select>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Industry Type</label>
+<select class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus bg-white">
+<option>Select Industry</option>
+<option>Fintech</option>
+<option>Manufacturing</option>
+<option>Retail</option>
+<option>Healthcare</option>
+</select>
+</div>
+<div class="grid grid-cols-2 gap-stack-md">
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Annual Revenue (USD)</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="5,000,000" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Employees</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="250" type="number"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: Business Address -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+<div class="bg-surface-container-high px-6 py-3 border-b border-outline-variant">
+<h3 class="text-label-md font-label-md text-on-surface uppercase tracking-wider">Section 2: Business Address</h3>
+</div>
+<div class="p-6 space-y-stack-md">
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Address Line 1</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="Street name and building number" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Address Line 2 (Optional)</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="Suite, floor, or additional details" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-stack-md">
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">City</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="e.g. New York" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Country</label>
+<select class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus bg-white">
+<option>United States</option>
+<option>United Kingdom</option>
+<option>Singapore</option>
+<option>Germany</option>
+</select>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 3: Authorized Signatory -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+<div class="bg-surface-container-high px-6 py-3 border-b border-outline-variant flex justify-between items-center">
+<h3 class="text-label-md font-label-md text-on-surface uppercase tracking-wider">Section 3: Authorized Signatory</h3>
+<button class="text-secondary text-label-md font-label-md flex items-center hover:bg-surface-variant px-2 py-1 rounded transition-colors">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="add">add</span> Add Another
+                            </button>
+</div>
+<div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-stack-md">
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Signatory Name</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="Full legal name" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Designation</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus" placeholder="e.g. Managing Director" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">Nationality</label>
+<select class="w-full h-9 border border-outline-variant rounded px-3 text-body-md form-input-focus bg-white">
+<option>United States</option>
+<option>Canada</option>
+<option>France</option>
+<option>Japan</option>
+</select>
+</div>
+<div class="space-y-1">
+<label class="text-label-md font-label-md text-on-surface-variant">ID/Passport Number</label>
+<input class="w-full h-9 border border-outline-variant rounded px-3 text-body-md font-mono-md form-input-focus" placeholder="Enter ID number" type="text"/>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Sticky Footer Action Bar -->
+<footer class="bottom-0 left-0 right-0 h-20 bg-surface-container border-t border-outline-variant px-margin-desktop flex items-center justify-between z-10 fixed">
+<button class="px-6 h-11 border border-outline text-on-surface font-label-md rounded flex items-center gap-2 hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span> Back
+                </button>
+<div class="flex gap-4">
+<button class="px-6 h-11 border border-secondary text-secondary font-label-md rounded hover:bg-secondary-container transition-colors">
+                        Save as Draft
+                    </button>
+<button class="px-8 h-11 bg-primary-container text-white font-label-md rounded flex items-center gap-2 hover:opacity-90 transition-opacity">
+                        Save &amp; Continue <span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</footer>
+</main>
+</div>
+<!-- Decorative side panel for context -->
+<div class="hidden lg:flex flex-col w-80 bg-surface-container-high p-6 border-l border-outline-variant overflow-y-auto">
+<h4 class="text-label-md font-label-md text-on-surface-variant mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="info">info</span> HELP &amp; GUIDANCE
+        </h4>
+<div class="space-y-6">
+<div class="p-4 bg-white rounded-lg border border-outline-variant">
+<p class="text-label-md font-label-md mb-2">Required Documents</p>
+<ul class="text-body-sm space-y-2 text-on-surface-variant">
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-success text-sm" data-icon="check_circle" data-weight="fill" style="color: rgb(26, 127, 55);">check_circle</span>
+                        Certificate of Incorporation
+                    </li>
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-success text-sm" data-icon="check_circle" data-weight="fill" style="color: rgb(26, 127, 55);">check_circle</span>
+                        Memorandum of Association
+                    </li>
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-outline text-sm" data-icon="radio_button_unchecked">radio_button_unchecked</span>
+                        Proof of Registered Address
+                    </li>
+</ul>
+</div>
+<div class="p-4 bg-primary-container/5 rounded-lg border border-primary-container/20">
+<p class="text-label-md font-label-md text-primary mb-2">Analyst Tip</p>
+<p class="text-body-sm text-on-surface-variant italic">
+                    "Ensure the Legal Entity Name matches the provided Certificate of Incorporation exactly to avoid verification delays."
+                </p>
+</div>
+<div class="relative rounded-lg overflow-hidden group cursor-pointer">
+<img class="w-full h-32 object-cover transition-transform group-hover:scale-105" data-alt="A macro close-up of a high-security biometric identification card with holographic elements shimmering under soft, cinematic blue office lighting. The visual style is ultra-professional, clean, and minimalist, emphasizing corporate security and advanced technology through sharp focus and shallow depth of field. The overall aesthetic is one of precision and reliability within a premium banking environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEn1NBPD_EtDEFcqlJh_J0LMJxHBwTQepcPnT3sWsj1uxULvhExyfKfdpiGL_S3zgolz40Fea2m7hNkbDQpv4REYkVgNjBJB2FFPVOmQKDAKTxdzjoB7z0Dys9TUVGS23eYFjVEOHbMWG7yd2u3BbeVr8bAcbzEVggFIygSq5fiaNFHWj7TCL396JHYMxCE5QBI2dFAUkyInMeShe6P0NfxeT3Gg34uDRKgHuP1RP2ng7ElhhT02vADihlGeXb05nEjFI51WYTO48"/>
+<div class="absolute inset-0 bg-primary-container/40 flex items-center justify-center">
+<span class="text-white text-label-md font-label-md bg-black/40 px-3 py-1 rounded backdrop-blur-sm">View Verification Guide</span>
+</div>
+</div>
+</div>
+</div>
+<script>
+        // Simple micro-interaction for form inputs
+        document.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('focus', () => {
+                el.parentElement.querySelector('label')?.classList.add('text-secondary');
+            });
+            el.addEventListener('blur', () => {
+                el.parentElement.querySelector('label')?.classList.remove('text-secondary');
+            });
+        });
+    </script>
+</body></html>

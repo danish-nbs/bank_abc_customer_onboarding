@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Personal Information - Bank ABC Onboarding</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed-dim": "#aec7f6",
+                      "on-surface-variant": "#44474e",
+                      "secondary-container": "#90bafd",
+                      "surface-bright": "#f8f9ff",
+                      "on-secondary": "#ffffff",
+                      "inverse-surface": "#213145",
+                      "surface-dim": "#cbdbf5",
+                      "secondary-fixed-dim": "#a7c8ff",
+                      "surface-variant": "#d3e4fe",
+                      "on-primary": "#ffffff",
+                      "secondary": "#325f9c",
+                      "surface-tint": "#465f88",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-container-low": "#eff4ff",
+                      "error-container": "#ffdad6",
+                      "on-secondary-container": "#154985",
+                      "on-surface": "#0b1c30",
+                      "inverse-primary": "#aec7f6",
+                      "on-error-container": "#93000a",
+                      "primary-container": "#002147",
+                      "on-background": "#0b1c30",
+                      "tertiary-fixed-dim": "#bdc7d6",
+                      "on-secondary-fixed-variant": "#114783",
+                      "surface-container": "#e5eeff",
+                      "on-error": "#ffffff",
+                      "on-secondary-fixed": "#001b3c",
+                      "error": "#ba1a1a",
+                      "surface-container-highest": "#d3e4fe",
+                      "outline": "#74777f",
+                      "primary": "#000a1e",
+                      "on-tertiary": "#ffffff",
+                      "on-tertiary-fixed": "#131c27",
+                      "tertiary-container": "#18222d",
+                      "secondary-fixed": "#d5e3ff",
+                      "on-tertiary-container": "#7f8997",
+                      "background": "#f8f9ff",
+                      "on-tertiary-fixed-variant": "#3e4853",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "surface-container-high": "#dce9ff",
+                      "outline-variant": "#c4c6cf",
+                      "on-primary-fixed": "#001b3d",
+                      "primary-fixed": "#d6e3ff",
+                      "inverse-on-surface": "#eaf1ff",
+                      "tertiary": "#030b15",
+                      "on-primary-container": "#708ab5",
+                      "tertiary-fixed": "#d9e3f2",
+                      "surface": "#f8f9ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "stack-sm": "8px",
+                      "stack-md": "16px",
+                      "container-max": "1440px",
+                      "margin-desktop": "32px",
+                      "stack-lg": "24px",
+                      "margin-mobile": "16px",
+                      "gutter": "24px",
+                      "unit": "4px"
+              },
+              "fontFamily": {
+                      "mono-md": ["JetBrains Mono"],
+                      "display-lg": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "body-md": ["Inter"],
+                      "label-md": ["Inter"],
+                      "headline-md": ["Inter"]
+              },
+              "fontSize": {
+                      "mono-md": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                      "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9ff;
+            color: #0b1c30;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="flex overflow-hidden h-screen bg-background">
+<!-- Updated SideNavBar -->
+<aside class="flex flex-col h-screen p-4 space-y-2 bg-surface-container-low border-r border-outline-variant w-64 shrink-0">
+<div class="flex items-center px-2 py-4 mb-4">
+<div class="w-8 h-8 bg-primary rounded flex items-center justify-center mr-3">
+<span class="material-symbols-outlined text-white" style='font-variation-settings: "FILL" 1;'>account_balance</span>
+</div>
+<div>
+<h1 class="text-label-md font-bold text-on-surface leading-tight">Bank ABC</h1>
+<p class="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant opacity-70">Onboarding Platform</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="dashboard">dashboard</span>
+<span class="text-label-md font-label-md">Dashboard</span>
+</a>
+<!-- Active State: Cases -->
+<a class="flex items-center px-3 py-2 bg-secondary-container text-on-secondary-container rounded-lg transition-all group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="folder_shared" style='font-variation-settings: "FILL" 1;'>folder_shared</span>
+<span class="text-label-md font-label-md">Cases</span>
+</a>
+<a class="flex items-center px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="corporate_fare">corporate_fare</span>
+<span class="text-label-md font-label-md">Entities</span>
+</a>
+<a class="flex items-center px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="description">description</span>
+<span class="text-label-md font-label-md">Documents</span>
+</a>
+<a class="flex items-center px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="settings">settings</span>
+<span class="text-label-md font-label-md">Settings</span>
+</a>
+</nav>
+<!-- Bottom Section: User Profile -->
+<div class="pt-4 border-t border-outline-variant">
+<div class="flex items-center p-2 rounded-lg hover:bg-surface-variant transition-colors cursor-pointer">
+<img alt="Jane Cooper" class="w-10 h-10 rounded-full object-cover mr-3 border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCenD7J3wM1gaVshn31ClBKWMkHv5UKlW7jmVrBL0RqM8K8BXIM4HwSwvLciVPJhFUWfezxIaMSvRa9VDb7J8NWs9bRsaH30c0XG5_omnRShWmjL2ZUdy7TUz_rLMYQbdzV9TMQSMpy9NyP1jV3qCJXvFG-kIR4q7TdxtBk_K5VqisAogcnfQAMPHNFJXGUYKCDG__4xVplPKm0-h1BXBaMAixdICZH4hZ0506oRBJDPJjy9eg2iFfPxhIHGdTr69JR8BEfnSNbjw"/>
+<div class="overflow-hidden">
+<p class="text-label-md font-bold text-on-surface truncate">Jane Cooper</p>
+<p class="text-body-sm text-on-surface-variant truncate">Senior Risk Analyst</p>
+</div>
+<span class="material-symbols-outlined ml-auto text-on-surface-variant" data-icon="unfold_more">unfold_more</span>
+</div>
+</div>
+</aside>
+<div class="flex flex-col flex-1 overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-6 h-16 bg-surface border-b border-outline-variant shrink-0">
+<div class="flex items-center space-x-8">
+<span class="text-headline-sm font-headline-sm font-bold text-primary">Bank ABC Onboarding Platform</span>
+</div>
+<div class="flex items-center space-x-2">
+<div class="relative mr-4 hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-body-md">search</span>
+<input class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-body-sm focus:ring-2 focus:ring-secondary w-64 transition-all" placeholder="Search applications..." type="text"/>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant rounded-full transition-all">
+<span class="material-symbols-outlined">language</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant rounded-full transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto p-gutter custom-scrollbar">
+<div class="max-w-[1000px] mx-auto space-y-stack-lg">
+<!-- Page Header -->
+<div class="flex flex-col space-y-1">
+<div class="flex items-center space-x-2 text-secondary cursor-pointer">
+<span class="material-symbols-outlined text-body-sm">arrow_back</span>
+<span class="text-label-md font-label-md">Back to Case List</span>
+</div>
+<h2 class="text-display-lg font-display-lg text-primary mt-2">Personal Information</h2>
+<p class="text-body-lg font-body-lg text-on-surface-variant max-w-2xl">Step 2 of 4: Provide legal personal details and contact information for the customer onboarding record.</p>
+</div>
+<!-- Form Content -->
+<form class="space-y-stack-lg">
+<!-- Personal Details Section -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+<h3 class="text-headline-sm font-headline-sm text-primary mb-6 flex items-center">
+<span class="material-symbols-outlined mr-2 text-secondary">person</span>
+                            Personal Details
+                        </h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="firstName">First Name</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="firstName" name="firstName" placeholder="John" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="middleName">Middle Name</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="middleName" name="middleName" placeholder="Quincy" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="lastName">Last Name</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="lastName" name="lastName" placeholder="Doe" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="gender">Gender</label>
+<select class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="gender">
+<option value="">Select Gender</option>
+<option value="male">Male</option>
+<option value="female">Female</option>
+<option value="other">Other</option>
+<option value="prefer_not_to_say">Prefer not to say</option>
+</select>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="dob">Date of Birth</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="dob" type="date"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="maritalStatus">Marital Status</label>
+<select class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="maritalStatus">
+<option value="">Select Status</option>
+<option value="single">Single</option>
+<option value="married">Married</option>
+<option value="divorced">Divorced</option>
+<option value="widowed">Widowed</option>
+</select>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="nationality">Nationality</label>
+<select class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="nationality">
+<option value="">Select Nationality</option>
+<option value="US">United States</option>
+<option value="UK">United Kingdom</option>
+<option value="CA">Canada</option>
+<option value="AU">Australia</option>
+</select>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="residence">Country of Residence</label>
+<select class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="residence">
+<option value="">Select Country</option>
+<option value="US">United States</option>
+<option value="UK">United Kingdom</option>
+<option value="CA">Canada</option>
+<option value="AU">Australia</option>
+</select>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="nationalId">National ID Number</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="nationalId" placeholder="SSN or National ID" type="text"/>
+</div>
+</div>
+</section>
+<!-- Contact Information Section -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+<h3 class="text-headline-sm font-headline-sm text-primary mb-6 flex items-center">
+<span class="material-symbols-outlined mr-2 text-secondary">contact_mail</span>
+                            Contact Information
+                        </h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="mobile">Mobile Number</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="mobile" placeholder="+1 (555) 000-0000" type="tel"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="altMobile">Alternate Mobile Number</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="altMobile" placeholder="+1 (555) 000-0000" type="tel"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="email">Email Address</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="email" placeholder="jane.doe@example.com" type="email"/>
+</div>
+</div>
+</section>
+<!-- Employment Information Section -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm mt-stack-lg">
+<h3 class="text-headline-sm font-headline-sm text-primary mb-6 flex items-center">
+<span class="material-symbols-outlined mr-2 text-secondary">work</span>
+                            Employment Information
+                        </h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="employmentStatus">Employment Status</label>
+<select class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="employmentStatus">
+<option value="">Select Status</option>
+<option value="salaried">Salaried</option>
+<option value="self_employed">Self-employed</option>
+<option value="unemployed">Unemployed</option>
+<option value="business_owner">Business owner</option>
+<option value="retired">Retired</option>
+</select>
+</div>
+<div class="flex flex-col gap-stack-sm md:col-span-2">
+<label class="text-label-md font-label-md text-on-surface" for="employerName">Employer Name</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="employerName" name="employerName" placeholder="Company Name" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="jobTitle">Job Title</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="jobTitle" name="jobTitle" placeholder="e.g. Software Engineer" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="monthlySalary">Monthly Salary</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="monthlySalary" name="monthlySalary" placeholder="Enter amount" type="text"/>
+</div>
+</div>
+</section>
+<!-- Address Information Section -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+<h3 class="text-headline-sm font-headline-sm text-primary mb-6 flex items-center">
+<span class="material-symbols-outlined mr-2 text-secondary">location_on</span>
+                            Address Information
+                        </h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<div class="flex flex-col gap-stack-sm md:col-span-2">
+<label class="text-label-md font-label-md text-on-surface" for="addressLine1">Address Line 1</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="addressLine1" name="addressLine1" placeholder="Street address, P.O. box" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="addressLine2">Address Line 2</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="addressLine2" name="addressLine2" placeholder="Apartment, suite, unit, building, floor" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="city">City</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="city" name="city" placeholder="City" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="state">State/Province</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="state" name="state" placeholder="State / Province / Region" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="postalCode">Postal Code</label>
+<input class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="postalCode" name="postalCode" placeholder="ZIP / Postal Code" type="text"/>
+</div>
+<div class="flex flex-col gap-stack-sm">
+<label class="text-label-md font-label-md text-on-surface" for="addressCountry">Country</label>
+<select class="h-11 px-3 border border-outline-variant rounded bg-surface-bright text-on-surface font-body-md focus:border-secondary focus:ring-1 focus:ring-secondary" id="addressCountry">
+<option value="">Select Country</option>
+<option value="US">United States</option>
+<option value="UK">United Kingdom</option>
+<option value="CA">Canada</option>
+<option value="AU">Australia</option>
+</select>
+</div>
+</div>
+</section>
+<!-- Actions -->
+<div class="flex items-center justify-end space-x-4 pt-4 pb-12">
+<button class="px-6 py-2.5 text-label-md font-label-md text-on-surface hover:bg-surface-variant rounded border border-outline-variant transition-all active:scale-95" type="button">
+                            Back
+                        </button>
+<button class="px-8 py-2.5 bg-primary text-white text-label-md font-label-md rounded hover:bg-primary/90 shadow-md transition-all active:scale-95 flex items-center" type="button">
+<span class="material-symbols-outlined mr-2">check_circle</span>
+                            Save &amp; Continue
+                        </button>
+</div>
+</form>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-low border-t border-outline-variant shrink-0">
+<div class="w-full py-4 px-6 flex flex-col md:flex-row justify-between items-center gap-2">
+<div class="text-body-sm font-body-sm text-on-surface-variant">
+                    © 2024 Bank ABC. Secure Onboarding Platform.
+                </div>
+<nav class="flex gap-4">
+<a class="text-body-sm font-body-sm text-on-surface-variant hover:text-primary underline" href="#">Privacy Policy</a>
+<a class="text-body-sm font-body-sm text-on-surface-variant hover:text-primary underline" href="#">Terms of Service</a>
+<a class="text-body-sm font-body-sm text-on-surface-variant hover:text-primary underline" href="#">Support</a>
+</nav>
+</div>
+</footer>
+</div>
+</body></html>

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bank ABC Onboarding Platform - Case Overview</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-fixed-variant": "#114783",
+                    "on-secondary-fixed": "#001b3c",
+                    "on-error-container": "#93000a",
+                    "surface-container-low": "#eff4ff",
+                    "secondary-fixed-dim": "#a7c8ff",
+                    "tertiary": "#030b15",
+                    "on-background": "#0b1c30",
+                    "error": "#ba1a1a",
+                    "background": "#f8f9ff",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-fixed": "#001b3d",
+                    "outline-variant": "#c4c6cf",
+                    "surface-container-high": "#dce9ff",
+                    "on-secondary-container": "#154985",
+                    "inverse-surface": "#213145",
+                    "on-primary-container": "#708ab5",
+                    "surface": "#f8f9ff",
+                    "surface-bright": "#f8f9ff",
+                    "on-tertiary-container": "#7f8997",
+                    "outline": "#74777f",
+                    "error-container": "#ffdad6",
+                    "tertiary-container": "#18222d",
+                    "surface-container-highest": "#d3e4fe",
+                    "on-surface": "#0b1c30",
+                    "tertiary-fixed-dim": "#bdc7d6",
+                    "surface-tint": "#465f88",
+                    "surface-container": "#e5eeff",
+                    "on-primary": "#ffffff",
+                    "inverse-primary": "#aec7f6",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-container": "#002147",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#d6e3ff",
+                    "surface-dim": "#cbdbf5",
+                    "secondary-container": "#90bafd",
+                    "primary": "#000a1e",
+                    "on-tertiary-fixed": "#131c27",
+                    "on-primary-fixed-variant": "#2d476f",
+                    "secondary": "#325f9c",
+                    "tertiary-fixed": "#d9e3f2",
+                    "surface-variant": "#d3e4fe",
+                    "primary-fixed-dim": "#aec7f6",
+                    "on-surface-variant": "#44474e",
+                    "on-tertiary-fixed-variant": "#3e4853",
+                    "inverse-on-surface": "#eaf1ff",
+                    "secondary-fixed": "#d5e3ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "stack-md": "16px",
+                    "unit": "4px",
+                    "stack-sm": "8px",
+                    "margin-desktop": "32px",
+                    "container-max": "1440px",
+                    "stack-lg": "24px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "mono-md": ["JetBrains Mono"],
+                    "headline-sm": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "label-md": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "mono-md": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { background-color: #f8f9ff; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .sidebar-active { background-color: #90bafd !important; color: #154985 !important; font-weight: 700; border-radius: 0.25rem; }
+        .tab-active { border-bottom: 2px solid #000a1e; color: #000a1e; font-weight: 700; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="font-body-md text-body-md text-on-surface overflow-hidden h-screen flex">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-stack-lg px-unit bg-surface-container-low border-r border-outline-variant w-64 z-50">
+<div class="px-stack-md mb-stack-lg">
+<h1 class="text-headline-sm font-headline-md text-primary">Case Manager</h1>
+<p class="text-label-md font-label-md text-on-surface-variant">Onboarding Team</p>
+</div>
+<nav class="flex-1 space-y-1 px-unit">
+<a class="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest transition-all duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-stack-md py-stack-sm bg-secondary-container text-on-secondary-container rounded-lg font-bold transition-all duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">folder_shared</span>
+<span class="font-label-md text-label-md">Cases</span>
+</a>
+<a class="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest transition-all duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Clients</span>
+</a>
+<a class="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest transition-all duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest transition-all duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-outline-variant pt-stack-md px-unit">
+<div class="flex items-center gap-3 px-stack-md py-stack-sm mb-stack-md">
+<img alt="Analyst Profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant" data-alt="A professional headshot of a female analyst named Jane Cooper, wearing a business casual blazer in a bright, modern corporate office. The lighting is soft and high-key, creating a clean light-mode aesthetic with a shallow depth of field focusing on her friendly expression. The background shows hints of a glass-walled conference room and minimalist white furniture." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD-K1YEoaw27X-3rzDChhugiHoyv1j2r-obcAZKAOhMGyjlaWjqXSDVKrquNqx9QTRHWE4xOv0L2rzPjrYpA96j0tWLljpI3FpaKb65cLjdEB3yFB6IHD4heyq2SGuDPV9bvN4Xcb8S_rqdVW1G6iSPKNR2rNZR6mIQugKFt4116KMD1vFefRcTP-fMzWlaH5xG3aEEaBPQudmjBLkgGR5DF9eLsxs4SXDvVmlXKJanATPa0DaSOxwE1taDJdMR2wlc2L-VFi3Uko4"/>
+<div>
+<p class="text-body-sm font-bold text-on-surface">Jane Cooper</p>
+<p class="text-label-md text-on-surface-variant">Senior Analyst</p>
+</div>
+</div>
+<a class="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest transition-all duration-150" href="#">
+<span class="material-symbols-outlined">contact_support</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest transition-all duration-150" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Viewport -->
+<div class="flex-1 ml-64 flex flex-col h-full overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-margin-desktop py-stack-md bg-surface border-b border-outline-variant z-50">
+<div class="flex items-center gap-gutter">
+<span class="text-headline-sm font-headline-md text-primary">Bank ABC Onboarding Platform</span>
+</div>
+<div class="flex items-center gap-stack-lg">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container rounded-lg border-none pl-10 text-body-sm focus:ring-2 focus:ring-secondary" placeholder="Search across cases..." type="text"/>
+</div>
+<div class="flex items-center gap-stack-md">
+<span class="material-symbols-outlined cursor-pointer text-on-surface-variant hover:text-primary transition-colors">notifications</span>
+<span class="material-symbols-outlined cursor-pointer text-on-surface-variant hover:text-primary transition-colors">help</span>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<main class="flex-1 overflow-y-auto p-margin-desktop bg-background space-y-stack-lg">
+<!-- Page Header -->
+<div class="flex flex-col gap-unit">
+<button class="flex items-center gap-1 text-secondary font-label-md text-label-md hover:underline w-fit">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                    Back to Case Queue
+                </button>
+<div class="flex justify-between items-end">
+<h2 class="font-headline-md text-headline-md text-on-surface">Case Details: APP-882194-Z</h2>
+<div class="flex gap-stack-sm">
+<button class="px-stack-md h-9 border border-outline text-on-surface-variant rounded-lg font-label-md text-label-md hover:bg-surface-container transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+                            Escalate
+                        </button>
+<button class="px-stack-md h-9 border border-outline text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">Request Documents</button>
+<button class="px-stack-md h-9 border border-error text-error font-label-md text-label-md hover:bg-error-container transition-colors">Reject</button>
+<button class="px-stack-md h-9 bg-primary-container text-on-primary-container font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity">Approve</button>
+</div>
+</div>
+</div>
+<!-- Tab Bar -->
+<div class="flex border-b border-outline-variant overflow-x-auto scrollbar-hide">
+<button class="px-stack-lg py-stack-md font-label-md text-label-md text-on-surface tab-active">Overview</button>
+<button class="px-stack-lg py-stack-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface">Documents</button>
+<button class="px-stack-lg py-stack-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface">Activity</button>
+<button class="px-stack-lg py-stack-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface">Notes</button>
+<button class="px-stack-lg py-stack-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface">Audit</button>
+<button class="px-stack-lg py-stack-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface">Risk</button>
+<button class="px-stack-lg py-stack-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface">Entities</button>
+<button class="px-stack-lg py-stack-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface">Decisions</button>
+</div>
+<!-- Consolidated Content -->
+<div class="space-y-stack-lg">
+<!-- Summary Row -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-stack-lg">
+<!-- Case Summary Card -->
+<section class="lg:col-span-2 bg-white rounded-lg border border-outline-variant overflow-hidden">
+<div class="bg-surface-container-low px-stack-lg py-stack-sm border-b border-outline-variant">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Case Summary</span>
+</div>
+<div class="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-y-stack-lg gap-x-stack-md">
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Application ID</p>
+<p class="font-body-md text-body-md font-bold text-on-surface">APP-882194-Z</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Customer Name</p>
+<p class="font-body-md text-body-md font-bold text-on-surface">John Michael Doe</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Product Name</p>
+<p class="font-body-md text-body-md text-on-surface">Business Loan</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Status</p>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-container-highest text-on-secondary-container">In Review</span>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Risk Score</p>
+<p class="font-body-md text-body-md text-on-surface font-bold">32 / 100 <span class="text-success font-normal ml-1 text-sm">(Low)</span></p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Assigned Analyst</p>
+<div class="flex items-center gap-2 mt-1">
+<img alt="Jane Cooper" class="w-5 h-5 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD-K1YEoaw27X-3rzDChhugiHoyv1j2r-obcAZKAOhMGyjlaWjqXSDVKrquNqx9QTRHWE4xOv0L2rzPjrYpA96j0tWLljpI3FpaKb65cLjdEB3yFB6IHD4heyq2SGuDPV9bvN4Xcb8S_rqdVW1G6iSPKNR2rNZR6mIQugKFt4116KMD1vFefRcTP-fMzWlaH5xG3aEEaBPQudmjBLkgGR5DF9eLsxs4SXDvVmlXKJanATPa0DaSOxwE1taDJdMR2wlc2L-VFi3Uko4"/>
+<p class="font-body-md text-body-md text-on-surface">Jane Cooper</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Application Details Card -->
+<section class="bg-white rounded-lg border border-outline-variant overflow-hidden h-fit">
+<div class="bg-surface-container-low px-stack-lg py-stack-sm border-b border-outline-variant">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Application Details</span>
+</div>
+<div class="p-stack-lg space-y-stack-lg">
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Product Type</p>
+<p class="font-body-md text-body-md text-on-surface">Commercial Lending</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Product Variant</p>
+<p class="font-body-md text-body-md text-on-surface">SME Growth Loan</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Priority Level</p>
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-error-container text-error">
+<span class="material-symbols-outlined text-[14px] mr-1">priority_high</span> High
+                                </span>
+</div>
+</div>
+</section>
+</div>
+<!-- Customer Details Container -->
+<div class="space-y-stack-lg">
+<div class="flex items-center gap-3">
+<h3 class="text-headline-sm font-headline-md text-on-surface">Customer Details</h3>
+<div class="h-[1px] flex-1 bg-outline-variant"></div>
+</div>
+<!-- Personal Information -->
+<section class="bg-white rounded-lg border border-outline-variant overflow-hidden">
+<div class="bg-surface-container-low px-stack-lg py-stack-sm border-b border-outline-variant">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Personal Information</span>
+</div>
+<div class="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">First Name</p>
+<p class="font-body-md text-body-md font-bold text-on-surface">John</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Middle Name</p>
+<p class="font-body-md text-body-md text-on-surface">Michael</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Last Name</p>
+<p class="font-body-md text-body-md font-bold text-on-surface">Doe</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Gender</p>
+<p class="font-body-md text-body-md text-on-surface">Male</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Date of Birth</p>
+<p class="font-body-md text-body-md text-on-surface">15 May 1985</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Marital Status</p>
+<p class="font-body-md text-body-md text-on-surface">Married</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Nationality</p>
+<p class="font-body-md text-body-md text-on-surface">British</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Country of Residence</p>
+<p class="font-body-md text-body-md text-on-surface">United Kingdom</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">National ID Number</p>
+<p class="font-mono-md text-mono-md text-on-surface">GB-123456789</p>
+</div>
+</div>
+</section>
+<!-- Contact & Employment Row -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-stack-lg">
+<!-- Contact Information -->
+<section class="bg-white rounded-lg border border-outline-variant overflow-hidden">
+<div class="bg-surface-container-low px-stack-lg py-stack-sm border-b border-outline-variant">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Contact Information</span>
+</div>
+<div class="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Mobile Number</p>
+<p class="font-body-md text-body-md text-on-surface">+44 7700 900000</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Email Address</p>
+<p class="font-body-md text-body-md text-on-surface">john.doe@acmecorp.com</p>
+</div>
+</div>
+</section>
+<!-- Employment Information -->
+<section class="bg-white rounded-lg border border-outline-variant overflow-hidden">
+<div class="bg-surface-container-low px-stack-lg py-stack-sm border-b border-outline-variant">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Employment Information</span>
+</div>
+<div class="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Employer Name</p>
+<p class="font-body-md text-body-md font-bold text-on-surface">Acme Corp Ltd.</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Job Title</p>
+<p class="font-body-md text-body-md text-on-surface">Managing Director</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Employment Status</p>
+<p class="font-body-md text-body-md text-on-surface">Full-time</p>
+</div>
+</div>
+</section>
+</div>
+<!-- Address Information -->
+<section class="bg-white rounded-lg border border-outline-variant overflow-hidden">
+<div class="bg-surface-container-low px-stack-lg py-stack-sm border-b border-outline-variant">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Address Information</span>
+</div>
+<div class="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-stack-lg">
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Address</p>
+<p class="font-body-md text-body-md text-on-surface">221B Baker Street</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">City</p>
+<p class="font-body-md text-body-md text-on-surface">London</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Postal Code</p>
+<p class="font-body-md text-body-md text-on-surface">NW1 6XE</p>
+</div>
+<div class="space-y-unit">
+<p class="text-label-md font-label-md text-on-surface-variant">Country</p>
+<p class="font-body-md text-body-md text-on-surface">United Kingdom</p>
+</div>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+</body></html>
