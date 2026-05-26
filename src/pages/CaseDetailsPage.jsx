@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { GetCommand } from '@aws-sdk/lib-dynamodb'
+import { dynamoClient } from '../lib/awsClients'
+import { awsConfig } from '../aws-config'
 import { currentUser } from '../data/mockData'
 
 const TABS = ['Overview', 'Documents', 'Identity and Fraud Verification', 'AML', 'Risk Assessment', 'Notes', 'Audit Trail']
@@ -26,6 +29,26 @@ export default function CaseDetailsPage() {
   const [activeDoc, setActiveDoc] = useState(0)
   const [zoom, setZoom] = useState(1)
   const [fields, setFields] = useState(INITIAL_FIELDS)
+  const [caseData, setCaseData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const result = await dynamoClient.send(new GetCommand({
+          TableName: awsConfig.dynamoTableName,
+          Key: { appId },
+        }))
+        setCaseData(result.Item ?? null)
+      } catch (err) {
+        console.error('Failed to load case:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    if (appId) load()
+    else setLoading(false)
+  }, [appId])
 
   function changeZoom(delta) {
     setZoom((z) => Math.min(Math.max(0.5, z + delta), 2.5))
@@ -153,7 +176,10 @@ export default function CaseDetailsPage() {
         {/* Tab content */}
         {activeTab === 0 && (
           <main className="flex-1 overflow-y-auto p-margin-desktop bg-background space-y-stack-lg main-scroll">
-            <OverviewContent appId={appId} />
+            {loading
+              ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
+              : <OverviewContent appId={appId} caseData={caseData} />
+            }
             <div className="pb-12" />
           </main>
         )}
@@ -162,11 +188,11 @@ export default function CaseDetailsPage() {
           <section className="flex flex-1 overflow-hidden">
             {/* Left: document viewer */}
             <div className="w-[60%] flex flex-col border-r border-outline-variant bg-surface-container-lowest relative">
-              {/* Doc sub-tabs */}
+              {/* Doc sub-tabs — real uploaded files or fallback to design mock */}
               <div className="flex border-b border-outline-variant bg-surface-container-low px-4 scrollbar-hide overflow-x-auto shrink-0">
-                {DOC_SUBTABS.map((d, i) => (
+                {(caseData?.documents?.length ? caseData.documents : DOC_SUBTABS).map((d, i) => (
                   <button
-                    key={d.label}
+                    key={d.name ?? d.label}
                     onClick={() => setActiveDoc(i)}
                     className={`flex items-center gap-2 px-4 py-3 text-label-md whitespace-nowrap transition-colors ${
                       i === activeDoc
@@ -175,8 +201,8 @@ export default function CaseDetailsPage() {
                     }`}
                     type="button"
                   >
-                    <span className="material-symbols-outlined text-[18px]">{d.icon}</span>
-                    {d.label}
+                    <span className="material-symbols-outlined text-[18px]">{d.icon ?? 'description'}</span>
+                    {d.name ?? d.label}
                   </button>
                 ))}
               </div>
@@ -263,43 +289,39 @@ export default function CaseDetailsPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6 doc-panel">
-                {/* Legal Entity Name */}
-                <VerifyField label="LEGAL ENTITY NAME" confidence={98} status="ok">
-                  <div className="relative">
-                    <input className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" value={fields.legalEntityName} onChange={(e) => setFields((f) => ({ ...f, legalEntityName: e.target.value }))} />
-                    <button className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors" type="button">
-                      <span className="material-symbols-outlined text-[20px]">edit</span>
-                    </button>
-                  </div>
-                </VerifyField>
-
-                {/* Registration Number */}
-                <VerifyField label="REGISTRATION NUMBER" confidence={99} status="ok">
-                  <input className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" value={fields.registrationNumber} onChange={(e) => setFields((f) => ({ ...f, registrationNumber: e.target.value }))} />
-                </VerifyField>
-
-                {/* Date of Incorporation */}
-                <VerifyField label="DATE OF INCORPORATION" confidence={72} status="warn">
-                  <div className="relative">
-                    <input className="w-full bg-white border border-amber-300 rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all" value={fields.dateOfIncorporation} onChange={(e) => setFields((f) => ({ ...f, dateOfIncorporation: e.target.value }))} />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-600 text-xs font-bold">Needs Review</span>
-                  </div>
-                </VerifyField>
-
-                {/* Registered Address */}
-                <VerifyField label="REGISTERED ADDRESS" confidence={95} status="ok">
-                  <textarea className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all resize-none" rows={3} value={fields.registeredAddress} onChange={(e) => setFields((f) => ({ ...f, registeredAddress: e.target.value }))} />
-                </VerifyField>
-
-                <div className="h-px bg-outline-variant" />
-
-                {/* Integrity checks */}
-                <div className="space-y-4">
-                  <h4 className="text-label-md font-bold text-on-surface">DOCUMENT INTEGRITY CHECKS</h4>
-                  <IntegrityRow icon="verified_user" label="Digital Signature Valid" status="pass" />
-                  <IntegrityRow icon="domain_verification" label="Registry Lookup Match" status="pass" />
-                  <IntegrityRow icon="history" label="Expiration Check" status="skip" />
-                </div>
+                {/* Show real AI results if available, otherwise show mock fields */}
+                {caseData?.aiResults?.[activeDoc]
+                  ? <AiResultPanel result={caseData.aiResults[activeDoc]} />
+                  : <>
+                      <VerifyField label="LEGAL ENTITY NAME" confidence={98} status="ok">
+                        <div className="relative">
+                          <input className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" value={fields.legalEntityName} onChange={(e) => setFields((f) => ({ ...f, legalEntityName: e.target.value }))} />
+                          <button className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors" type="button">
+                            <span className="material-symbols-outlined text-[20px]">edit</span>
+                          </button>
+                        </div>
+                      </VerifyField>
+                      <VerifyField label="REGISTRATION NUMBER" confidence={99} status="ok">
+                        <input className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" value={fields.registrationNumber} onChange={(e) => setFields((f) => ({ ...f, registrationNumber: e.target.value }))} />
+                      </VerifyField>
+                      <VerifyField label="DATE OF INCORPORATION" confidence={72} status="warn">
+                        <div className="relative">
+                          <input className="w-full bg-white border border-amber-300 rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all" value={fields.dateOfIncorporation} onChange={(e) => setFields((f) => ({ ...f, dateOfIncorporation: e.target.value }))} />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-600 text-xs font-bold">Needs Review</span>
+                        </div>
+                      </VerifyField>
+                      <VerifyField label="REGISTERED ADDRESS" confidence={95} status="ok">
+                        <textarea className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all resize-none" rows={3} value={fields.registeredAddress} onChange={(e) => setFields((f) => ({ ...f, registeredAddress: e.target.value }))} />
+                      </VerifyField>
+                      <div className="h-px bg-outline-variant" />
+                      <div className="space-y-4">
+                        <h4 className="text-label-md font-bold text-on-surface">DOCUMENT INTEGRITY CHECKS</h4>
+                        <IntegrityRow icon="verified_user" label="Digital Signature Valid" status="pass" />
+                        <IntegrityRow icon="domain_verification" label="Registry Lookup Match" status="pass" />
+                        <IntegrityRow icon="history" label="Expiration Check" status="skip" />
+                      </div>
+                    </>
+                }
               </div>
 
               <div className="p-6 bg-surface-container-high border-t border-outline-variant flex gap-3 shrink-0">
@@ -369,7 +391,85 @@ function Field({ label, children }) {
   )
 }
 
-function OverviewContent({ appId }) {
+function AiResultPanel({ result }) {
+  const isWarn = result.verificationStatus === 'needs_review'
+  const isSuspicious = result.verificationStatus === 'suspicious'
+  const statusColor = isSuspicious ? 'text-error' : isWarn ? 'text-amber-600' : 'text-green-700'
+  const statusBg = isSuspicious ? 'bg-error-container border-error/30' : isWarn ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'
+
+  return (
+    <div className="space-y-6">
+      {/* Summary */}
+      <div className={`p-4 rounded-lg border ${statusBg} flex items-start gap-3`}>
+        <span className={`material-symbols-outlined ${statusColor}`} style={{ fontVariationSettings: '"FILL" 1' }}>
+          {isSuspicious ? 'warning' : isWarn ? 'info' : 'verified'}
+        </span>
+        <div>
+          <p className={`text-label-md font-label-md uppercase tracking-wider ${statusColor}`}>{result.verificationStatus.replace('_', ' ')}</p>
+          <p className="text-body-sm text-on-surface mt-1">{result.summary}</p>
+        </div>
+      </div>
+
+      {/* Document type + confidence */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-label-md font-label-md text-on-surface-variant">DOCUMENT TYPE</p>
+          <p className="text-body-md font-bold text-on-surface mt-1">{result.documentType}</p>
+        </div>
+        <span className={`px-3 py-1 text-label-md font-label-md border rounded-full ${
+          result.confidenceScore >= 80 ? 'bg-green-50 text-green-700 border-green-200'
+          : result.confidenceScore >= 60 ? 'bg-amber-50 text-amber-700 border-amber-200'
+          : 'bg-error-container text-error border-error/30'
+        }`}>
+          {result.confidenceScore}% confidence
+        </span>
+      </div>
+
+      <div className="h-px bg-outline-variant" />
+
+      {/* Extracted fields */}
+      {Object.keys(result.extractedFields ?? {}).length > 0 && (
+        <div className="space-y-4">
+          <h4 className="text-label-md font-bold text-on-surface">EXTRACTED FIELDS</h4>
+          {Object.entries(result.extractedFields).map(([key, value]) => (
+            <div key={key} className="space-y-1">
+              <p className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">{key.replace(/_/g, ' ')}</p>
+              <input
+                className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                defaultValue={value}
+                readOnly
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Fraud indicators */}
+      {result.fraudIndicators?.length > 0 && (
+        <>
+          <div className="h-px bg-outline-variant" />
+          <div className="space-y-3">
+            <h4 className="text-label-md font-bold text-error">FRAUD INDICATORS</h4>
+            {result.fraudIndicators.map((indicator, i) => (
+              <div key={i} className="flex items-center gap-3 p-3 bg-error-container rounded-lg border border-error/20">
+                <span className="material-symbols-outlined text-error text-[18px]">flag</span>
+                <span className="text-body-sm text-on-surface">{indicator}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function OverviewContent({ appId, caseData }) {
+  const fd = caseData?.formData ?? {}
+  const isIndividual = !caseData || caseData.customerType === 'individual'
+  const fullName = isIndividual
+    ? [fd.firstName, fd.middleName, fd.lastName].filter(Boolean).join(' ') || 'John Michael Doe'
+    : fd.legalEntityName || 'Starlight Global Holdings LLC'
+
   return (
     <div className="space-y-stack-lg">
       {/* Summary row */}
@@ -378,14 +478,12 @@ function OverviewContent({ appId }) {
           <SectionHeader>Case Summary</SectionHeader>
           <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-y-stack-lg gap-x-stack-md">
             <Field label="Application ID"><span className="font-bold">{appId}</span></Field>
-            <Field label="Customer Name"><span className="font-bold">John Michael Doe</span></Field>
-            <Field label="Product Name">Business Loan</Field>
+            <Field label="Customer Name"><span className="font-bold">{fullName}</span></Field>
+            <Field label="Product">{caseData?.product || 'N/A'}</Field>
             <Field label="Status">
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-container-highest text-on-secondary-container">In Review</span>
-            </Field>
-            <Field label="Risk Score">
-              <span className="font-bold">32 / 100</span>
-              <span className="text-green-600 font-normal ml-1 text-sm">(Low)</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-container-highest text-on-secondary-container capitalize">
+                {(caseData?.status || 'in_review').replace('_', ' ')}
+              </span>
             </Field>
             <Field label="Assigned Analyst">
               <div className="flex items-center gap-2 mt-1">
@@ -393,6 +491,7 @@ function OverviewContent({ appId }) {
                 <span>{currentUser.name}</span>
               </div>
             </Field>
+            <Field label="Submitted">{caseData?.createdAt ? new Date(caseData.createdAt).toLocaleDateString() : 'N/A'}</Field>
           </div>
         </section>
         <section className="bg-white rounded-lg border border-outline-variant overflow-hidden h-fit">
@@ -415,46 +514,84 @@ function OverviewContent({ appId }) {
           <h3 className="text-headline-sm font-headline-sm text-on-surface">Customer Details</h3>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
-        <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-          <SectionHeader>Personal Information</SectionHeader>
-          <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
-            <Field label="First Name"><span className="font-bold">John</span></Field>
-            <Field label="Middle Name">Michael</Field>
-            <Field label="Last Name"><span className="font-bold">Doe</span></Field>
-            <Field label="Gender">Male</Field>
-            <Field label="Date of Birth">15 May 1985</Field>
-            <Field label="Marital Status">Married</Field>
-            <Field label="Nationality">British</Field>
-            <Field label="Country of Residence">United Kingdom</Field>
-            <Field label="National ID Number"><span className="text-mono-md font-mono-md">GB-123456789</span></Field>
-          </div>
-        </section>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-stack-lg">
-          <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-            <SectionHeader>Contact Information</SectionHeader>
-            <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
-              <Field label="Mobile Number">+44 7700 900000</Field>
-              <Field label="Email Address">john.doe@acmecorp.com</Field>
+        {isIndividual ? (
+          <>
+            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+              <SectionHeader>Personal Information</SectionHeader>
+              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
+                <Field label="First Name"><span className="font-bold">{fd.firstName || '—'}</span></Field>
+                <Field label="Middle Name">{fd.middleName || '—'}</Field>
+                <Field label="Last Name"><span className="font-bold">{fd.lastName || '—'}</span></Field>
+                <Field label="Gender">{fd.gender || '—'}</Field>
+                <Field label="Date of Birth">{fd.dateOfBirth || '—'}</Field>
+                <Field label="Marital Status">{fd.maritalStatus || '—'}</Field>
+                <Field label="Nationality">{fd.nationality || '—'}</Field>
+                <Field label="Country of Residence">{fd.countryOfResidence || '—'}</Field>
+                <Field label="National ID Number"><span className="text-mono-md font-mono-md">{fd.nationalIdNumber || '—'}</span></Field>
+              </div>
+            </section>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-stack-lg">
+              <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+                <SectionHeader>Contact Information</SectionHeader>
+                <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
+                  <Field label="Mobile Number">{fd.mobileNumber || '—'}</Field>
+                  <Field label="Email Address">{fd.emailAddress || '—'}</Field>
+                </div>
+              </section>
+              <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+                <SectionHeader>Employment Information</SectionHeader>
+                <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
+                  <Field label="Employer Name"><span className="font-bold">{fd.employerName || '—'}</span></Field>
+                  <Field label="Job Title">{fd.jobTitle || '—'}</Field>
+                  <Field label="Employment Status">{fd.employmentStatus || '—'}</Field>
+                </div>
+              </section>
             </div>
-          </section>
-          <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-            <SectionHeader>Employment Information</SectionHeader>
-            <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
-              <Field label="Employer Name"><span className="font-bold">Acme Corp Ltd.</span></Field>
-              <Field label="Job Title">Managing Director</Field>
-              <Field label="Employment Status">Full-time</Field>
-            </div>
-          </section>
-        </div>
-        <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-          <SectionHeader>Address Information</SectionHeader>
-          <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-stack-lg">
-            <Field label="Address">221B Baker Street</Field>
-            <Field label="City">London</Field>
-            <Field label="Postal Code">NW1 6XE</Field>
-            <Field label="Country">United Kingdom</Field>
-          </div>
-        </section>
+            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+              <SectionHeader>Address Information</SectionHeader>
+              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-stack-lg">
+                <Field label="Address">{fd.addressLine1 || '—'}</Field>
+                <Field label="City">{fd.city || '—'}</Field>
+                <Field label="Postal Code">{fd.postalCode || '—'}</Field>
+                <Field label="Country">{fd.country || '—'}</Field>
+              </div>
+            </section>
+          </>
+        ) : (
+          <>
+            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+              <SectionHeader>Company Information</SectionHeader>
+              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
+                <Field label="Legal Entity Name"><span className="font-bold">{fd.legalEntityName || '—'}</span></Field>
+                <Field label="Trade Name">{fd.tradeName || '—'}</Field>
+                <Field label="Registration Number"><span className="text-mono-md font-mono-md">{fd.companyRegistrationNumber || '—'}</span></Field>
+                <Field label="Tax ID / VAT">{fd.taxId || '—'}</Field>
+                <Field label="Date of Incorporation">{fd.dateOfIncorporation || '—'}</Field>
+                <Field label="Business Type">{fd.businessType || '—'}</Field>
+                <Field label="Industry">{fd.industryType || '—'}</Field>
+                <Field label="Annual Revenue">{fd.annualRevenue || '—'}</Field>
+                <Field label="Employees">{fd.numberOfEmployees || '—'}</Field>
+              </div>
+            </section>
+            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+              <SectionHeader>Business Address</SectionHeader>
+              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-stack-lg">
+                <Field label="Address">{fd.addressLine1 || '—'}</Field>
+                <Field label="City">{fd.city || '—'}</Field>
+                <Field label="Country">{fd.country || '—'}</Field>
+              </div>
+            </section>
+            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+              <SectionHeader>Authorized Signatory</SectionHeader>
+              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
+                <Field label="Name"><span className="font-bold">{fd.signatoryName || '—'}</span></Field>
+                <Field label="Designation">{fd.designation || '—'}</Field>
+                <Field label="Nationality">{fd.signatoryNationality || '—'}</Field>
+                <Field label="ID / Passport"><span className="text-mono-md font-mono-md">{fd.idPassportNumber || '—'}</span></Field>
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </div>
   )

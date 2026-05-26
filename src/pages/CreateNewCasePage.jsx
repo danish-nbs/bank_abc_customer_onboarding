@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { PutCommand } from '@aws-sdk/lib-dynamodb'
+import { dynamoClient } from '../lib/awsClients'
+import { awsConfig } from '../aws-config'
 
 function ChevronDown() {
   return (
@@ -43,8 +46,33 @@ export default function CreateNewCasePage() {
     setSelectedProduct('')
   }
   const [appId] = useState(() => `APP-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`)
+  const [saving, setSaving] = useState(false)
 
   const variants = PRODUCT_VARIANTS[selectedProduct] ?? DEFAULT_VARIANTS
+
+  async function handleCreateCase() {
+    setSaving(true)
+    try {
+      await dynamoClient.send(new PutCommand({
+        TableName: awsConfig.dynamoTableName,
+        Item: {
+          appId,
+          customerType,
+          product: selectedProduct,
+          status: 'draft',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      }))
+      navigate(
+        customerType === 'individual' ? '/cases/individual' : '/cases/business',
+        { state: { appId, product: selectedProduct } }
+      )
+    } catch (err) {
+      console.error('Failed to create case:', err)
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="flex overflow-hidden h-screen bg-background">
@@ -309,7 +337,8 @@ export default function CreateNewCasePage() {
                   <button
                     className="px-8 py-2.5 bg-primary text-white text-label-md font-label-md rounded hover:bg-primary/90 shadow-md transition-all active:scale-95 flex items-center"
                     type="button"
-                    onClick={() => navigate(customerType === 'individual' ? '/cases/individual' : '/cases/business', { state: { appId, product: selectedProduct } })}
+                    onClick={handleCreateCase}
+                    disabled={saving}
                   >
                     <span className="material-symbols-outlined mr-2">check_circle</span>
                     Create Case

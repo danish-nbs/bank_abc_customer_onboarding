@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
+import { dynamoClient } from '../lib/awsClients'
+import { awsConfig } from '../aws-config'
 
 function Field({ label, error, children, className = '' }) {
   return (
@@ -87,6 +90,21 @@ export default function BusinessCasePage() {
         document.querySelector('[data-error="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }, 50)
       return
+    }
+    try {
+      await dynamoClient.send(new UpdateCommand({
+        TableName: awsConfig.dynamoTableName,
+        Key: { appId },
+        UpdateExpression: 'SET formData = :fd, #st = :st, updatedAt = :ts',
+        ExpressionAttributeNames: { '#st': 'status' },
+        ExpressionAttributeValues: {
+          ':fd': values,
+          ':st': 'form_complete',
+          ':ts': new Date().toISOString(),
+        },
+      }))
+    } catch (err) {
+      console.error('Failed to save form data:', err)
     }
     navigate('/cases/upload-documents', { state: { appId, product } })
   }
