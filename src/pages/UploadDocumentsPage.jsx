@@ -1,9 +1,5 @@
 import { useState, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
-import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
-import { s3Client, dynamoClient } from '../lib/awsClients'
-import { awsConfig } from '../aws-config'
 import { currentUser } from '../data/mockData'
 
 const REQUIRED_DOCS = {
@@ -57,9 +53,7 @@ export default function UploadDocumentsPage() {
   const requiredDocs = product ? (REQUIRED_DOCS[product] ?? []) : []
   const [files, setFiles] = useState([])
   const [isDragging, setIsDragging] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const inputRef = useRef(null)
-  // Keep raw File objects alongside display metadata
   const rawFilesRef = useRef([])
 
   function addFiles(fileList) {
@@ -85,41 +79,8 @@ export default function UploadDocumentsPage() {
     if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files)
   }
 
-  async function handleStartProcessing() {
-    if (files.length === 0) {
-      navigate('/processing', { state: { appId, product } })
-      return
-    }
-    setUploading(true)
-    try {
-      const uploadedDocs = []
-      for (const file of rawFilesRef.current) {
-        const key = `${appId}/${Date.now()}-${file.name}`
-        const arrayBuffer = await file.raw.arrayBuffer()
-        await s3Client.send(new PutObjectCommand({
-          Bucket: awsConfig.s3BucketName,
-          Key: key,
-          Body: new Uint8Array(arrayBuffer),
-          ContentType: file.raw.type || 'application/octet-stream',
-        }))
-        uploadedDocs.push({ key, name: file.name, size: file.size, uploadedAt: new Date().toISOString() })
-      }
-      await dynamoClient.send(new UpdateCommand({
-        TableName: awsConfig.dynamoTableName,
-        Key: { appId },
-        UpdateExpression: 'SET documents = :docs, #st = :st, updatedAt = :ts',
-        ExpressionAttributeNames: { '#st': 'status' },
-        ExpressionAttributeValues: {
-          ':docs': uploadedDocs,
-          ':st': 'uploaded',
-          ':ts': new Date().toISOString(),
-        },
-      }))
-      navigate('/processing', { state: { appId, product } })
-    } catch (err) {
-      console.error('Upload failed:', err)
-      setUploading(false)
-    }
+  function handleStartProcessing() {
+    navigate('/processing', { state: { appId, product, files: rawFilesRef.current } })
   }
 
   return (
@@ -338,10 +299,9 @@ export default function UploadDocumentsPage() {
                   className="px-8 py-2.5 bg-primary text-on-primary text-label-md font-label-md rounded hover:bg-primary/90 shadow-md transition-all active:scale-95 flex items-center"
                   type="button"
                   onClick={handleStartProcessing}
-                  disabled={uploading}
                 >
-                  <span className="material-symbols-outlined mr-2">{uploading ? 'sync' : 'check_circle'}</span>
-                  {uploading ? 'Uploading...' : 'Start Processing'}
+                  <span className="material-symbols-outlined mr-2">check_circle</span>
+                  Start Processing
                 </button>
               </div>
             </section>

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
-import { GetObjectCommand } from '@aws-sdk/client-s3'
-import { InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime'
-import { dynamoClient, s3Client, bedrockClient } from '../lib/awsClients'
+import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
+import { InvokeCommand } from '@aws-sdk/client-lambda'
+import { s3Client, dynamoClient, lambdaClient } from '../lib/awsClients'
 import { awsConfig } from '../aws-config'
 
 const STEPS = [
@@ -13,126 +13,75 @@ const STEPS = [
   { label: 'Running Fraud Checks',     icon: 'security'      },
 ]
 
-const BEDROCK_PROMPT = `You are a KYC document verification AI for Bank ABC.
-Analyze each provided document and return ONLY a valid JSON array — no markdown, no explanation.
-Each element must follow this exact structure:
-[
-  {
-    "documentType": "Passport | National ID | Trade License | Certificate of Incorporation | MOA | Power of Attorney | Bank Statement | Utility Bill | Salary Certificate | Selfie | Other",
-    "extractedFields": { "fieldName": "value" },
-    "confidenceScore": 0-100,
-    "fraudIndicators": [],
-    "verificationStatus": "verified | needs_review | suspicious",
-    "summary": "one sentence summary"
-  }
-]`
-
-async function fetchDocumentAsBase64(key) {
-  const response = await s3Client.send(new GetObjectCommand({
-    Bucket: awsConfig.s3BucketName,
-    Key: key,
-  }))
-  const bytes = await response.Body.transformToByteArray()
-  let binary = ''
-  bytes.forEach((b) => { binary += String.fromCharCode(b) })
-  return { base64: btoa(binary), contentType: response.ContentType || 'application/octet-stream' }
-}
-
-function mediaTypeToBlockType(contentType) {
-  if (contentType.startsWith('image/')) return 'image'
-  if (contentType === 'application/pdf') return 'document'
-  return 'image'
-}
-
-async function invokeBedrockOnDocuments(documents) {
-  if (!documents || documents.length === 0) return []
-
-  const contentBlocks = []
-  for (const doc of documents) {
-    try {
-      const { base64, contentType } = await fetchDocumentAsBase64(doc.key)
-      const blockType = mediaTypeToBlockType(contentType)
-      contentBlocks.push({
-        type: blockType,
-        source: { type: 'base64', media_type: contentType, data: base64 },
-      })
-    } catch (err) {
-      console.warn(`Could not fetch document ${doc.key}:`, err)
-    }
-  }
-
-  if (contentBlocks.length === 0) return []
-
-  contentBlocks.push({ type: 'text', text: BEDROCK_PROMPT })
-
-  const body = JSON.stringify({
-    anthropic_version: 'bedrock-2023-05-31',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: contentBlocks }],
-  })
-
-  const response = await bedrockClient.send(new InvokeModelCommand({
-    modelId: awsConfig.bedrockModelId,
-    contentType: 'application/json',
-    accept: 'application/json',
-    body,
-  }))
-
-  const decoded = JSON.parse(new TextDecoder().decode(response.body))
-  const text = decoded.content?.[0]?.text ?? '[]'
-
-  // Strip markdown code fences if present
-  const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
-  return JSON.parse(cleaned)
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 export default function ProcessingLoaderPage() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const appId = state?.appId
+  const product = state?.product
+  const files = state?.files ?? []
+
   const [step, setStep] = useState(0)
 
   useEffect(() => {
-    const total = Math.floor(Math.random() * 5001) + 5000
-    const interval = total / STEPS.length
-
-    // Animate steps
-    const timers = STEPS.map((_, i) =>
-      setTimeout(() => setStep(i + 1), interval * (i + 1))
-    )
-
-    // Run actual processing
     async function run() {
       try {
-        const result = await dynamoClient.send(new GetCommand({
-          TableName: awsConfig.dynamoTableName,
-          Key: { appId },
-        }))
-        const caseRecord = result.Item ?? {}
-        const aiResults = await invokeBedrockOnDocuments(caseRecord.documents ?? [])
+        // ── Step 0: Ingesting Files ──────────────────────────────────────────
+        // Upload each file to S3, then update DynamoDB with the document list
+        const uploadedDocs = []
+        for (const file of files) {
+          const key = `${appId}/${Date.now()}-${file.name}`
+          const arrayBuffer = await file.raw.arrayBuffer()
+          await s3Client.send(new PutObjectCommand({
+            Bucket: awsConfig.s3BucketName,
+            Key: key,
+            Body: new Uint8Array(arrayBuffer),
+            ContentType: file.raw.type || 'application/octet-stream',
+          }))
+          uploadedDocs.push({ key, name: file.name, size: file.size, uploadedAt: new Date().toISOString() })
+        }
+
         await dynamoClient.send(new UpdateCommand({
           TableName: awsConfig.dynamoTableName,
           Key: { appId },
-          UpdateExpression: 'SET aiResults = :ai, #st = :st, updatedAt = :ts',
+          UpdateExpression: 'SET documents = :docs, #st = :st, updatedAt = :ts',
           ExpressionAttributeNames: { '#st': 'status' },
           ExpressionAttributeValues: {
-            ':ai': aiResults,
-            ':st': 'in_review',
+            ':docs': uploadedDocs,
+            ':st': 'uploaded',
             ':ts': new Date().toISOString(),
           },
         }))
+
+        // ── Step 1: Classifying Documents ────────────────────────────────────
+        // Invoke Lambda and advance to step 2 after 3 seconds while it runs
+        setStep(1)
+        const lambdaPromise = lambdaClient.send(new InvokeCommand({
+          FunctionName: awsConfig.classifyDocumentFunctionName,
+          Payload: new TextEncoder().encode(JSON.stringify({ appId })),
+        }))
+
+        await sleep(3000)
+
+        // ── Step 2: Extracting Identity Data ─────────────────────────────────
+        // Stays here until Lambda completes (Lambda writes aiResults to DynamoDB)
+        setStep(2)
+        await lambdaPromise
+
+        // ── Step 3: Running Fraud Checks ─────────────────────────────────────
+        setStep(3)
+        await sleep(2500)
+
+        navigate('/cases/overview', { state: { appId, product } })
       } catch (err) {
         console.error('Processing failed:', err)
       }
     }
 
-    // Navigate when both animation and processing are done
-    Promise.all([
-      run(),
-      new Promise((resolve) => setTimeout(resolve, total + 400)),
-    ]).then(() => navigate('/cases/overview', { state }))
-
-    return () => timers.forEach(clearTimeout)
+    run()
   }, [])
 
   const progress = Math.round((step / STEPS.length) * 100)
@@ -160,7 +109,7 @@ export default function ProcessingLoaderPage() {
       <main className="flex-1 h-full flex items-center justify-center p-gutter">
         <div className="bg-surface border border-outline-variant rounded-lg w-full max-w-2xl p-stack-lg shadow-sm flex flex-col items-center">
 
-          {/* Animation area */}
+          {/* Animation */}
           <div className="relative w-48 h-48 mb-stack-lg flex items-center justify-center">
             <div className="absolute inset-0 rounded-full border-2 border-secondary pulse-ring" />
             <div className="absolute inset-4 rounded-full border-4 border-surface-container-high border-t-primary spin-slow" />

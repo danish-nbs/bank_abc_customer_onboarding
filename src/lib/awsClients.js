@@ -2,7 +2,8 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import { S3Client } from '@aws-sdk/client-s3'
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
-import { fromCognitoIdentityPool } from '@aws-sdk/credential-providers'
+import { LambdaClient } from '@aws-sdk/client-lambda'
+import { fromCognitoIdentityPool } from '@aws-sdk/credential-provider-cognito-identity'
 import { awsConfig } from '../aws-config'
 
 const credentials = fromCognitoIdentityPool({
@@ -23,3 +24,5 @@ export const dynamoClient = DynamoDBDocumentClient.from(
 export const s3Client = new S3Client(baseConfig)
 
 export const bedrockClient = new BedrockRuntimeClient(baseConfig)
+
+export const lambdaClient = new LambdaClient(baseConfig)

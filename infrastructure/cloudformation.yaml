@@ -119,7 +119,184 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
-                Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0'
+                Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/global.anthropic.claude-sonnet-4-5-20250929-v1:0'
+        - PolicyName: LambdaInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt ClassifyDocumentFunction.Arn
+
+  # ─────────────────────────────────────────
+  # Lambda — Document Classification
+  # ─────────────────────────────────────────
+  ClassifyDocumentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-classify-document-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${DocumentsBucket.Arn}/*'
+              - Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource:
+                  - 'arn:aws:bedrock:*::foundation-model/*'
+                  - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*'
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt CasesTable.Arn
+        - PolicyName: SSMAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/prompts/*'
+
+  ClassifyDocumentFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AppName}-classify-document'
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt ClassifyDocumentRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          BUCKET: !Ref DocumentsBucket
+          MODEL: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0'
+          PROMPT_PARAM: !Ref ClassifyDocumentPrompt
+          TABLE: !Ref CasesTable
+      Code:
+        ZipFile: |
+          import json, os, base64, boto3
+          from datetime import datetime, timezone
+          s3 = boto3.client('s3')
+          bedrock = boto3.client('bedrock-runtime')
+          ssm = boto3.client('ssm')
+          dynamodb = boto3.resource('dynamodb')
+          BUCKET = os.environ['BUCKET']
+          MODEL = os.environ['MODEL']
+          PROMPT_PARAM = os.environ['PROMPT_PARAM']
+          TABLE_NAME = os.environ['TABLE']
+          DOCUMENT_TYPES = {
+              'Credit Card':       ['Passport', 'National ID', 'Utility Bill', 'Bank Statement', 'Selfie'],
+              'Personal Loan':     ['Passport', 'National ID', 'Salary Certificate', 'Bank Statement', 'Selfie'],
+              'SME Account':       ['Trade License', 'Certificate of Incorporation', 'Passport', 'National ID', 'Selfie'],
+              'Corporate Account': ['Trade License', 'MOA', 'Power of Attorney', 'Passport', 'National ID', 'Selfie'],
+          }
+          CLASSIFICATION_PROMPT = ssm.get_parameter(Name=PROMPT_PARAM)['Parameter']['Value']
+          def _fetch_block(key):
+              obj = s3.get_object(Bucket=BUCKET, Key=key)
+              ct = obj.get('ContentType', 'image/jpeg')
+              b64 = base64.b64encode(obj['Body'].read()).decode()
+              return {'type': 'document' if ct == 'application/pdf' else 'image', 'source': {'type': 'base64', 'media_type': ct, 'data': b64}}
+          def lambda_handler(event, _context):
+              app_id = event.get('appId')
+              if not app_id:
+                  return {'statusCode': 400, 'body': json.dumps({'error': 'appId is required'})}
+              table = dynamodb.Table(TABLE_NAME)
+              case = table.get_item(Key={'appId': app_id}).get('Item')
+              if not case:
+                  return {'statusCode': 404, 'body': json.dumps({'error': f'Case {app_id} not found'})}
+              product = case.get('product')
+              docs = case.get('documents', [])
+              if not product:
+                  return {'statusCode': 400, 'body': json.dumps({'error': 'Case has no product type'})}
+              if not docs:
+                  return {'statusCode': 400, 'body': json.dumps({'error': 'Case has no documents'})}
+              types = DOCUMENT_TYPES.get(product)
+              if not types:
+                  return {'statusCode': 400, 'body': json.dumps({'error': f'Unknown product: {product}'})}
+              blocks = [_fetch_block(d['key']) for d in docs]
+              prompt = CLASSIFICATION_PROMPT.replace('{product_type}', product).replace('{expected_list}', ', '.join(types)).replace('{doc_count}', str(len(docs)))
+              blocks.append({'type': 'text', 'text': prompt})
+              resp = bedrock.invoke_model(modelId=MODEL, contentType='application/json', accept='application/json',
+                  body=json.dumps({'anthropic_version': 'bedrock-2023-05-31', 'max_tokens': 1024,
+                      'messages': [{'role': 'user', 'content': blocks}]}))
+              text = json.loads(resp['body'].read())['content'][0]['text'].strip()
+              if text.startswith('```'):
+                  text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+              classifications = json.loads(text)
+              results = []
+              for i, doc in enumerate(docs):
+                  r = classifications[i] if i < len(classifications) else {}
+                  if r.get('documentType') not in types:
+                      r['documentType'] = 'Unclassified'
+                  results.append({'documentKey': doc['key'], 'documentName': doc.get('name', ''), **r})
+              table.update_item(
+                  Key={'appId': app_id},
+                  UpdateExpression='SET aiResults = :ai, #st = :st, updatedAt = :ts',
+                  ExpressionAttributeNames={'#st': 'status'},
+                  ExpressionAttributeValues={':ai': results, ':st': 'in_review', ':ts': datetime.now(timezone.utc).isoformat()},
+              )
+              return {'statusCode': 200, 'body': json.dumps({'appId': app_id, 'productType': product, 'expectedTypes': types, 'results': results})}
+
+  # ─────────────────────────────────────────
+  # SSM — Prompts
+  # ─────────────────────────────────────────
+  ClassifyDocumentPrompt:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/${AppName}/prompts/classify-document'
+      Type: String
+      Description: "Classification prompt for the document classifier Lambda. Placeholders: {product_type}, {expected_list}, {doc_count}"
+      Value: |
+        You are a KYC document classifier and data extractor for Bank ABC.
+        The applicant is applying for: {product_type}.
+        Expected document types for this product: {expected_list}.
+
+        You are provided with {doc_count} document(s), supplied in order above this text.
+        For each document:
+        1. Classify it as exactly one of the expected types. If it does not clearly match any, use "Unclassified".
+        2. Extract the fields listed below for the identified document type. Use null for any field not found.
+        3. Assign an individual confidence score (0-100) for each extracted field.
+
+        Field extraction guide by document type:
+        - Passport: fullName, passportNumber, nationality, dateOfBirth, gender, issueDate, expiryDate
+        - National ID: fullName, idNumber, dateOfBirth, nationality, expiryDate, gender, address
+        - Utility Bill: customerName, address
+        - Bank Statement: accountHolderName, accountNumber, iban, bankName, statementStartDate, statementEndDate
+        - Salary Certificate: employeeName, employerName, employeeId, salaryAmount, netSalary
+        - Trade License: companyName, tradeLicenseNumber, businessActivity, issueDate, expiryDate, licensingAuthority
+        - Certificate of Incorporation: companyName, registrationNumber, incorporationDate
+        - MOA: companyName, authorizedSignatories
+        - Power of Attorney: principalName, attorneyName, effectiveDate, expiryDate
+
+        Return ONLY a valid JSON array — no markdown, no explanation.
+        One element per document, in the same order as provided:
+        [
+          {
+            "documentType": "<one of the expected types, or Unclassified>",
+            "confidenceScore": <integer 0-100>,
+            "reasoning": "<one sentence>",
+            "extractedFields": {
+              "<fieldName>": { "value": "<extracted value or null>", "confidence": <integer 0-100> }
+            }
+          }
+        ]
 
   # Attach the role to the Identity Pool
   IdentityPoolRoleAttachment:
@@ -148,3 +325,15 @@ Outputs:
   AWSRegion:
     Description: Deployment region
     Value: !Ref AWS::Region
+
+  ClassifyDocumentFunctionName:
+    Description: Lambda function name for document classification
+    Value: !Ref ClassifyDocumentFunction
+
+  ClassifyDocumentFunctionArn:
+    Description: Lambda function ARN for document classification
+    Value: !GetAtt ClassifyDocumentFunction.Arn
+
+  ClassifyDocumentPromptName:
+    Description: SSM parameter name for the classification prompt
+    Value: !Ref ClassifyDocumentPrompt

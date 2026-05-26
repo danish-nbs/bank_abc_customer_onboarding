@@ -1,23 +1,25 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { GetCommand } from '@aws-sdk/lib-dynamodb'
-import { dynamoClient } from '../lib/awsClients'
+import { GetObjectCommand } from '@aws-sdk/client-s3'
+import { dynamoClient, s3Client } from '../lib/awsClients'
 import { awsConfig } from '../aws-config'
 import { currentUser } from '../data/mockData'
 
-const TABS = ['Overview', 'Documents', 'Identity and Fraud Verification', 'AML', 'Risk Assessment', 'Notes', 'Audit Trail']
+const TABS = ['Overview', 'Documents', 'Entities', 'Risk', 'Activity', 'Notes', 'Audit', 'Decisions']
 
-const DOC_SUBTABS = [
-  { label: 'Certificate of Incorporation', icon: 'description' },
-  { label: 'Tax ID Document',              icon: 'badge'        },
-  { label: 'Articles of Association',      icon: 'history_edu'  },
-]
+const REQUIRED_DOCS = {
+  'Credit Card':       ['Passport / National ID', 'Utility Bill', 'Bank Statement', 'Selfie'],
+  'Personal Loan':     ['Passport / National ID', 'Salary Certificate', 'Bank Statement', 'Selfie'],
+  'SME Account':       ['Trade License', 'Certificate of Incorporation', 'Passport / National ID', 'Selfie'],
+  'Corporate Account': ['Trade License', 'MOA', 'Power of Attorney', 'Passport / National ID', 'Selfie'],
+}
 
-const INITIAL_FIELDS = {
-  legalEntityName: 'Starlight Global Holdings LLC',
-  registrationNumber: 'DE-9921-X81',
-  dateOfIncorporation: '12 Oct 2014',
-  registeredAddress: '148 High Street, Suite 500, London, EC1A 4JQ, United Kingdom',
+const DOC_TYPE_OPTIONS = {
+  'Credit Card':       ['Passport', 'National ID', 'Utility Bill', 'Bank Statement', 'Selfie'],
+  'Personal Loan':     ['Passport', 'National ID', 'Salary Certificate', 'Bank Statement', 'Selfie'],
+  'SME Account':       ['Trade License', 'Certificate of Incorporation', 'Passport', 'National ID', 'Selfie'],
+  'Corporate Account': ['Trade License', 'MOA', 'Power of Attorney', 'Passport', 'National ID', 'Selfie'],
 }
 
 export default function CaseDetailsPage() {
@@ -26,9 +28,6 @@ export default function CaseDetailsPage() {
   const appId = state?.appId ?? 'APP-882194-Z'
 
   const [activeTab, setActiveTab] = useState(0)
-  const [activeDoc, setActiveDoc] = useState(0)
-  const [zoom, setZoom] = useState(1)
-  const [fields, setFields] = useState(INITIAL_FIELDS)
   const [caseData, setCaseData] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -50,9 +49,13 @@ export default function CaseDetailsPage() {
     else setLoading(false)
   }, [appId])
 
-  function changeZoom(delta) {
-    setZoom((z) => Math.min(Math.max(0.5, z + delta), 2.5))
-  }
+  const fd = caseData?.formData ?? {}
+  const isIndividual = !caseData || caseData.customerType === 'individual'
+  const customerName = isIndividual
+    ? [fd.firstName, fd.middleName, fd.lastName].filter(Boolean).join(' ') || '—'
+    : fd.legalEntityName || '—'
+  const customerTypeLabel = isIndividual ? 'Individual Onboarding' : 'Corporate Onboarding'
+  const statusLabel = (caseData?.status || 'in_review').replace(/_/g, ' ')
 
   return (
     <div className="font-body-md text-body-md text-on-surface overflow-hidden h-screen flex">
@@ -62,9 +65,6 @@ export default function CaseDetailsPage() {
         .main-scroll::-webkit-scrollbar { width: 4px; }
         .main-scroll::-webkit-scrollbar-track { background: transparent; }
         .main-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .doc-panel::-webkit-scrollbar { width: 4px; }
-        .doc-panel::-webkit-scrollbar-track { background: transparent; }
-        .doc-panel::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .document-overlay {
           background-image: radial-gradient(circle, rgba(0,33,71,0.05) 1px, transparent 1px);
           background-size: 20px 20px;
@@ -99,22 +99,19 @@ export default function CaseDetailsPage() {
             <span className="text-label-md font-label-md">Settings</span>
           </a>
         </nav>
-        <div className="mt-auto border-t border-outline-variant pt-stack-md px-unit">
-          <div className="flex items-center gap-3 px-stack-md py-stack-sm mb-stack-md">
-            <img alt={currentUser.name} className="w-10 h-10 rounded-full object-cover border border-outline-variant" src={currentUser.avatar} />
-            <div>
-              <p className="text-body-sm font-bold text-on-surface">{currentUser.name}</p>
-              <p className="text-label-md text-on-surface-variant">{currentUser.role}</p>
-            </div>
-          </div>
+        <div className="mt-auto border-t border-outline-variant pt-stack-md px-unit space-y-1">
           <a className="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-all" href="#">
             <span className="material-symbols-outlined">contact_support</span>
             <span className="text-label-md font-label-md">Support</span>
           </a>
-          <a className="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-all" href="#">
-            <span className="material-symbols-outlined">logout</span>
-            <span className="text-label-md font-label-md">Log Out</span>
-          </a>
+          <div className="flex items-center gap-3 px-stack-md py-stack-sm bg-surface-container-lowest rounded-xl border border-outline-variant">
+            <img alt={currentUser.name} className="w-10 h-10 rounded-full object-cover" src={currentUser.avatar} />
+            <div className="overflow-hidden flex-1">
+              <p className="text-body-sm font-bold text-on-surface truncate">{currentUser.name}</p>
+              <p className="text-xs text-on-surface-variant">{currentUser.role}</p>
+            </div>
+            <button className="ml-auto material-symbols-outlined text-on-surface-variant" type="button">logout</button>
+          </div>
         </div>
       </aside>
 
@@ -122,49 +119,57 @@ export default function CaseDetailsPage() {
       <div className="flex-1 flex flex-col h-full overflow-hidden">
 
         {/* Top header */}
-        <header className="flex justify-between items-center w-full px-margin-desktop py-stack-md bg-surface border-b border-outline-variant shrink-0">
-          <span className="text-headline-sm font-headline-sm text-primary">Bank ABC Onboarding Platform</span>
-          <div className="flex items-center gap-stack-lg">
-            <div className="relative w-96">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
-              <input className="w-full bg-surface-container rounded-lg border-none pl-10 text-body-sm focus:ring-2 focus:ring-secondary" placeholder="Search across cases..." type="text" />
+        <header className="flex justify-between items-center w-full px-margin-desktop py-unit bg-surface border-b border-outline-variant shrink-0">
+          <div className="flex items-center gap-8">
+            <span className="text-headline-sm font-headline-sm text-primary">Bank ABC Onboarding Platform</span>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+              <input className="pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-md w-72 focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" placeholder="Search case ID or entity..." type="text" />
             </div>
-            <div className="flex items-center gap-stack-md">
-              <span className="material-symbols-outlined cursor-pointer text-on-surface-variant hover:text-primary transition-colors">notifications</span>
-              <span className="material-symbols-outlined cursor-pointer text-on-surface-variant hover:text-primary transition-colors">help</span>
-            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="p-2 text-primary hover:bg-surface-container-high transition-colors rounded-full" type="button">
+              <span className="material-symbols-outlined">notifications</span>
+            </button>
+            <button className="p-2 text-primary hover:bg-surface-container-high transition-colors rounded-full" type="button">
+              <span className="material-symbols-outlined">help</span>
+            </button>
           </div>
         </header>
 
         {/* Page header */}
-        <div className="px-margin-desktop pt-stack-lg pb-0 bg-background shrink-0">
-          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-1 text-secondary text-label-md font-label-md hover:underline w-fit mb-stack-sm" type="button">
+        <div className="px-margin-desktop pt-8 pb-4 bg-background shrink-0">
+          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-secondary text-label-md font-label-md hover:underline mb-4" type="button">
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
             Back to Case Queue
           </button>
-          <div className="flex justify-between items-end pb-stack-lg">
-            <h2 className="text-headline-md font-headline-sm text-on-surface">Case Details: {appId}</h2>
-            <div className="flex gap-stack-sm">
-              <button className="px-stack-md h-9 border border-outline text-on-surface-variant rounded-lg text-label-md font-label-md hover:bg-surface-container transition-colors flex items-center gap-2" type="button">
-                <span className="material-symbols-outlined text-[18px]">warning</span>Escalate
-              </button>
-              <button className="px-stack-md h-9 border border-outline text-on-surface text-label-md font-label-md hover:bg-surface-container transition-colors" type="button">Request Documents</button>
-              <button className="px-stack-md h-9 border border-error text-error text-label-md font-label-md hover:bg-error-container transition-colors" type="button">Reject</button>
-              <button className="px-stack-md h-9 bg-primary-container text-on-primary-container text-label-md font-label-md rounded-lg hover:opacity-90 transition-opacity" type="button">Approve</button>
+          <div className="flex justify-between items-end">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h2 className="text-display-lg font-display-lg text-on-surface">{appId}</h2>
+                <span className="px-3 py-1 bg-secondary-fixed text-on-secondary-fixed text-label-md rounded-full capitalize">{statusLabel}</span>
+              </div>
+              <p className="text-body-lg text-on-surface-variant">{customerName} • {customerTypeLabel}</p>
+            </div>
+            <div className="flex gap-3">
+              <button className="px-4 py-[10px] border border-outline rounded-lg text-label-md font-bold hover:bg-surface-container-high transition-colors" type="button">Escalate</button>
+              <button className="px-4 py-[10px] border border-outline rounded-lg text-label-md font-bold hover:bg-surface-container-high transition-colors" type="button">Request Documents</button>
+              <button className="px-4 py-[10px] bg-error-container text-on-error-container rounded-lg text-label-md font-bold hover:opacity-90 transition-opacity" type="button">Reject</button>
+              <button className="px-4 py-[10px] bg-primary text-on-primary rounded-lg text-label-md font-bold hover:shadow-lg transition-all" type="button">Approve Case</button>
             </div>
           </div>
         </div>
 
         {/* Tab bar */}
-        <div className="flex border-b border-outline-variant bg-background px-margin-desktop overflow-x-auto scrollbar-hide shrink-0">
+        <div className="flex border-b border-outline-variant bg-background px-margin-desktop gap-8 overflow-x-auto scrollbar-hide shrink-0 mt-6">
           {TABS.map((tab, i) => (
             <button
               key={tab}
               onClick={() => setActiveTab(i)}
-              className={`px-stack-lg py-stack-md text-label-md font-label-md whitespace-nowrap transition-colors ${
+              className={`pb-3 text-label-md whitespace-nowrap transition-colors ${
                 i === activeTab
-                  ? 'text-on-surface border-b-2 border-primary -mb-px'
-                  : 'text-on-surface-variant hover:text-on-surface'
+                  ? 'text-primary font-bold border-b-2 border-primary -mb-px'
+                  : 'text-on-surface-variant font-medium hover:text-on-surface'
               }`}
               type="button"
             >
@@ -180,156 +185,16 @@ export default function CaseDetailsPage() {
               ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
               : <OverviewContent appId={appId} caseData={caseData} />
             }
-            <div className="pb-12" />
           </main>
         )}
 
         {activeTab === 1 && (
-          <section className="flex flex-1 overflow-hidden">
-            {/* Left: document viewer */}
-            <div className="w-[60%] flex flex-col border-r border-outline-variant bg-surface-container-lowest relative">
-              {/* Doc sub-tabs — real uploaded files or fallback to design mock */}
-              <div className="flex border-b border-outline-variant bg-surface-container-low px-4 scrollbar-hide overflow-x-auto shrink-0">
-                {(caseData?.documents?.length ? caseData.documents : DOC_SUBTABS).map((d, i) => (
-                  <button
-                    key={d.name ?? d.label}
-                    onClick={() => setActiveDoc(i)}
-                    className={`flex items-center gap-2 px-4 py-3 text-label-md whitespace-nowrap transition-colors ${
-                      i === activeDoc
-                        ? 'border-b-2 border-secondary bg-surface-container-lowest text-secondary font-bold'
-                        : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
-                    }`}
-                    type="button"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">{d.icon ?? 'description'}</span>
-                    {d.name ?? d.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Viewer */}
-              <div className="flex-1 relative document-overlay overflow-auto p-12 flex justify-center items-start doc-panel">
-                <div
-                  className="relative w-[600px] min-h-[840px] bg-white shadow-xl border border-outline-variant p-16 origin-top transition-transform duration-300"
-                  style={{ transform: `scale(${zoom})` }}
-                >
-                  <div className="absolute top-0 left-0 w-full h-2 bg-secondary opacity-20" />
-                  <div className="flex justify-between items-start mb-12">
-                    <div className="space-y-2">
-                      <div className="h-4 w-48 bg-surface-container-high rounded animate-pulse" />
-                      <div className="h-3 w-32 bg-surface-container rounded animate-pulse" />
-                    </div>
-                    <div className="w-16 h-16 border-4 border-outline-variant rounded-full flex items-center justify-center opacity-30">
-                      <span className="material-symbols-outlined text-[32px]">shield</span>
-                    </div>
-                  </div>
-                  <div className="space-y-8">
-                    <div className="h-8 w-64 bg-surface-container-highest rounded-sm" />
-                    <div className="space-y-4">
-                      <div className="h-4 w-full bg-surface-container rounded-sm" />
-                      <div className="h-4 w-full bg-surface-container rounded-sm" />
-                      <div className="h-4 w-3/4 bg-surface-container rounded-sm" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-8 mt-12">
-                      <div className="space-y-3">
-                        <div className="h-3 w-20 bg-surface-container-high rounded" />
-                        <div className="h-6 w-full border border-dashed border-outline-variant rounded" />
-                      </div>
-                      <div className="space-y-3">
-                        <div className="h-3 w-20 bg-surface-container-high rounded" />
-                        <div className="h-6 w-full border border-dashed border-outline-variant rounded" />
-                      </div>
-                    </div>
-                    <div className="mt-24 pt-12 border-t border-outline-variant opacity-40">
-                      <div className="flex justify-between">
-                        <div className="h-10 w-32 bg-surface-container rounded" />
-                        <div className="h-10 w-32 bg-surface-container rounded" />
-                      </div>
-                    </div>
-                  </div>
-                  {/* OCR highlight */}
-                  <div className="absolute top-[184px] left-[60px] w-[264px] h-[36px] bg-secondary/10 border-2 border-secondary rounded ring-4 ring-secondary/5 cursor-pointer group/highlight">
-                    <div className="absolute -top-8 left-0 px-2 py-1 bg-secondary text-white text-[10px] font-bold rounded opacity-0 group-hover/highlight:opacity-100 transition-opacity whitespace-nowrap">
-                      EXTRACTED: Legal Entity Name
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Zoom controls */}
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-primary text-on-primary p-2 rounded-full shadow-2xl z-10">
-                <button className="p-2 hover:bg-white/10 rounded-full" onClick={() => changeZoom(-0.1)} type="button">
-                  <span className="material-symbols-outlined">zoom_out</span>
-                </button>
-                <span className="px-3 text-label-md font-bold min-w-[50px] text-center">{Math.round(zoom * 100)}%</span>
-                <button className="p-2 hover:bg-white/10 rounded-full" onClick={() => changeZoom(0.1)} type="button">
-                  <span className="material-symbols-outlined">zoom_in</span>
-                </button>
-                <div className="w-px h-6 bg-white/20 mx-1" />
-                <button className="p-2 hover:bg-white/10 rounded-full" type="button">
-                  <span className="material-symbols-outlined">download</span>
-                </button>
-                <button className="p-2 hover:bg-white/10 rounded-full" type="button">
-                  <span className="material-symbols-outlined">print</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Right: Verification panel */}
-            <div className="w-[40%] flex flex-col bg-surface overflow-hidden">
-              <div className="p-6 border-b border-outline-variant bg-surface-container-high flex justify-between items-center shrink-0">
-                <div>
-                  <h3 className="text-headline-sm font-headline-sm text-primary">Verification Panel</h3>
-                  <p className="text-body-sm text-on-surface-variant">Extracted Data &amp; Validation</p>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full border border-green-200">
-                  <span className="material-symbols-outlined text-[16px]">verified</span>
-                  <span className="text-label-md">AI Pre-verified</span>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 doc-panel">
-                {/* Show real AI results if available, otherwise show mock fields */}
-                {caseData?.aiResults?.[activeDoc]
-                  ? <AiResultPanel result={caseData.aiResults[activeDoc]} />
-                  : <>
-                      <VerifyField label="LEGAL ENTITY NAME" confidence={98} status="ok">
-                        <div className="relative">
-                          <input className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" value={fields.legalEntityName} onChange={(e) => setFields((f) => ({ ...f, legalEntityName: e.target.value }))} />
-                          <button className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors" type="button">
-                            <span className="material-symbols-outlined text-[20px]">edit</span>
-                          </button>
-                        </div>
-                      </VerifyField>
-                      <VerifyField label="REGISTRATION NUMBER" confidence={99} status="ok">
-                        <input className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" value={fields.registrationNumber} onChange={(e) => setFields((f) => ({ ...f, registrationNumber: e.target.value }))} />
-                      </VerifyField>
-                      <VerifyField label="DATE OF INCORPORATION" confidence={72} status="warn">
-                        <div className="relative">
-                          <input className="w-full bg-white border border-amber-300 rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all" value={fields.dateOfIncorporation} onChange={(e) => setFields((f) => ({ ...f, dateOfIncorporation: e.target.value }))} />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-600 text-xs font-bold">Needs Review</span>
-                        </div>
-                      </VerifyField>
-                      <VerifyField label="REGISTERED ADDRESS" confidence={95} status="ok">
-                        <textarea className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all resize-none" rows={3} value={fields.registeredAddress} onChange={(e) => setFields((f) => ({ ...f, registeredAddress: e.target.value }))} />
-                      </VerifyField>
-                      <div className="h-px bg-outline-variant" />
-                      <div className="space-y-4">
-                        <h4 className="text-label-md font-bold text-on-surface">DOCUMENT INTEGRITY CHECKS</h4>
-                        <IntegrityRow icon="verified_user" label="Digital Signature Valid" status="pass" />
-                        <IntegrityRow icon="domain_verification" label="Registry Lookup Match" status="pass" />
-                        <IntegrityRow icon="history" label="Expiration Check" status="skip" />
-                      </div>
-                    </>
-                }
-              </div>
-
-              <div className="p-6 bg-surface-container-high border-t border-outline-variant flex gap-3 shrink-0">
-                <button className="flex-1 px-4 py-3 border border-outline-variant bg-white rounded-lg text-label-md font-bold hover:bg-surface-container transition-colors" type="button">Discard Draft</button>
-                <button className="flex-1 px-4 py-3 bg-primary text-on-primary rounded-lg text-label-md font-bold hover:shadow-lg transition-all" type="button">Submit Verification</button>
-              </div>
-            </div>
-          </section>
+          <main className="flex-1 overflow-y-auto p-margin-desktop bg-surface space-y-stack-lg main-scroll">
+            {loading
+              ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
+              : <DocumentsTab caseData={caseData} />
+            }
+          </main>
         )}
 
       </div>
@@ -337,42 +202,273 @@ export default function CaseDetailsPage() {
   )
 }
 
-function VerifyField({ label, confidence, status, children }) {
-  const isWarn = status === 'warn'
+// ─── Documents Tab ────────────────────────────────────────────────────────────
+
+function DocumentsTab({ caseData }) {
+  const product = caseData?.product ?? ''
+  const uploadedDocs = caseData?.documents ?? []
+  const aiResults = caseData?.aiResults ?? []
+  const required = REQUIRED_DOCS[product] ?? []
+  const typeOptions = DOC_TYPE_OPTIONS[product] ?? []
+
+  const completeness = required.length > 0
+    ? Math.min(100, Math.round((uploadedDocs.length / required.length) * 100))
+    : 0
+  const circumference = 251.2
+  const dashOffset = circumference * (1 - completeness / 100)
+
+  const missingRequired = required.slice(uploadedDocs.length)
+
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-center">
-        <label className="text-label-md font-label-md text-on-surface-variant">{label}</label>
-        <div className="flex items-center gap-2">
-          <span className={`px-2 py-0.5 text-[11px] font-bold border rounded ${isWarn ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-            {confidence}% CONFIDENCE
-          </span>
-          {isWarn
-            ? <span className="material-symbols-outlined text-amber-500 text-[18px]">warning</span>
-            : <span className="material-symbols-outlined text-green-600 text-[18px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
-          }
+    <>
+      {/* Completeness Section */}
+      <div className="bg-white p-6 rounded-xl border border-outline-variant shadow-sm flex items-start gap-12">
+        <div className="flex-shrink-0 flex flex-col items-center gap-2">
+          <div className="relative w-24 h-24">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 96 96">
+              <circle className="text-surface-container-highest" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" strokeWidth="8" />
+              <circle className="text-secondary" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" strokeDasharray={circumference} strokeDashoffset={dashOffset} strokeLinecap="round" strokeWidth="8" />
+            </svg>
+            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-headline-sm font-bold text-primary">{completeness}%</span>
+          </div>
+          <p className="text-label-md font-bold text-on-surface-variant">Completeness</p>
+        </div>
+        <div className="flex-1">
+          <h3 className="text-headline-sm mb-4">Required Documents Checklist</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {required.map((label, i) => {
+              const uploaded = i < uploadedDocs.length
+              return (
+                <div key={label} className={`flex items-center gap-3 p-3 rounded-lg border ${uploaded ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                  <span className={`material-symbols-outlined ${uploaded ? 'text-green-600' : 'text-amber-600'}`}>
+                    {uploaded ? 'check_circle' : 'pending'}
+                  </span>
+                  <span className="text-body-sm font-medium">{label}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
-      {children}
+
+      {/* Document Cards */}
+      <div className="space-y-stack-lg">
+        {uploadedDocs.map((doc, i) => (
+          <DocumentCard key={doc.key} doc={doc} aiResult={aiResults[i]} typeOptions={typeOptions} />
+        ))}
+        {missingRequired.map((label) => (
+          <MissingDocCard key={label} label={label} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+function DocumentCard({ doc, aiResult, typeOptions }) {
+  const [zoom, setZoom] = useState(1)
+  const [detectedType, setDetectedType] = useState(aiResult?.documentType ?? (typeOptions[0] ?? ''))
+  const [status, setStatus] = useState('Needs Review')
+  const [notes, setNotes] = useState('')
+  const [docUrl, setDocUrl] = useState(null)
+  const [isPdf, setIsPdf] = useState(false)
+  const [fields, setFields] = useState(() => {
+    const raw = aiResult?.extractedFields ?? {}
+    const result = {}
+    for (const [k, v] of Object.entries(raw)) {
+      result[k] = typeof v === 'object' && v !== null ? (v.value ?? '') : v
+    }
+    return result
+  })
+
+  const confidence = aiResult?.confidenceScore ?? null
+  const filename = doc.name ?? doc.key?.split('/').pop() ?? 'Document'
+
+  useEffect(() => {
+    if (!doc.key) return
+    let objectUrl
+    async function fetchDoc() {
+      try {
+        const obj = await s3Client.send(new GetObjectCommand({
+          Bucket: awsConfig.s3BucketName,
+          Key: doc.key,
+        }))
+        const contentType = obj.ContentType || ''
+        const bytes = await obj.Body.transformToByteArray()
+        const blob = new Blob([bytes], { type: contentType || 'application/octet-stream' })
+        objectUrl = URL.createObjectURL(blob)
+        setDocUrl(objectUrl)
+        setIsPdf(contentType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf'))
+      } catch (err) {
+        console.error('Failed to load document from S3:', err)
+      }
+    }
+    fetchDoc()
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [doc.key])
+
+  function changeZoom(delta) {
+    setZoom(z => Math.min(Math.max(0.5, z + delta), 2.0))
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden flex h-[700px]">
+
+      {/* Left: Viewer */}
+      <div className="w-1/2 bg-surface-container-low relative document-overlay overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-outline-variant bg-white flex justify-between items-center shrink-0">
+          <span className="text-label-md font-bold text-primary flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">visibility</span>
+            VIEWER: {filename}
+          </span>
+          <div className="flex items-center gap-1 bg-primary text-on-primary rounded-lg p-1">
+            {!isPdf && <>
+              <button className="p-1 hover:bg-white/10 rounded" onClick={() => changeZoom(-0.1)} type="button">
+                <span className="material-symbols-outlined text-[18px]">zoom_out</span>
+              </button>
+              <span className="px-2 text-[10px] font-bold">{Math.round(zoom * 100)}%</span>
+              <button className="p-1 hover:bg-white/10 rounded" onClick={() => changeZoom(0.1)} type="button">
+                <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+              </button>
+              <div className="w-px h-4 bg-white/20 mx-1" />
+            </>}
+            <button className="p-1 hover:bg-white/10 rounded" type="button" onClick={() => docUrl && window.open(docUrl)}>
+              <span className="material-symbols-outlined text-[18px]">download</span>
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          {!docUrl ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="material-symbols-outlined text-outline text-4xl animate-spin">progress_activity</span>
+            </div>
+          ) : isPdf ? (
+            <iframe src={docUrl} className="w-full h-full border-0" title={filename} />
+          ) : (
+            <div className="w-full h-full overflow-auto p-4 flex justify-center items-start">
+              <img
+                src={docUrl}
+                alt={filename}
+                className="max-w-full h-auto transition-transform duration-200"
+                style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right: Details */}
+      <div className="flex-1 flex flex-col border-l border-outline-variant overflow-hidden">
+
+        {/* Detected As & Status */}
+        <div className="p-6 border-b border-outline-variant space-y-6 shrink-0">
+          <div className="flex justify-between items-start">
+            <div className="space-y-2 flex-1 pr-4">
+              <label className="text-label-md font-bold text-on-surface-variant">DETECTED AS</label>
+              <div className="flex items-center gap-3">
+                <select
+                  className="flex-1 bg-white border border-outline-variant rounded-lg px-3 py-2 text-body-md focus:ring-2 focus:ring-secondary"
+                  value={detectedType}
+                  onChange={(e) => setDetectedType(e.target.value)}
+                >
+                  {typeOptions.map(opt => <option key={opt}>{opt}</option>)}
+                  {detectedType && !typeOptions.includes(detectedType) && <option>{detectedType}</option>}
+                </select>
+                {confidence !== null && (
+                  <span className="px-2 py-1 bg-green-100 text-green-800 text-[10px] font-bold rounded border border-green-200 whitespace-nowrap">
+                    {confidence}% CONFIDENCE
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2 w-48">
+              <label className="text-label-md font-bold text-on-surface-variant">STATUS</label>
+              <select
+                className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-body-md font-bold focus:ring-2 focus:ring-secondary"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <option>Approved</option>
+                <option>Rejected</option>
+                <option>Needs Review</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-label-md font-bold text-on-surface-variant">REASON / NOTES</label>
+            <textarea
+              className="w-full bg-white border border-outline-variant rounded-lg px-4 py-2 text-body-md focus:ring-2 focus:ring-secondary h-16 resize-none"
+              placeholder="Add a note..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Extracted Fields */}
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-6">
+          {Object.keys(fields).length > 0 ? (
+            <div className="space-y-3">
+              <h4 className="text-label-md font-bold text-on-surface">EXTRACTED FIELDS</h4>
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-surface-container-high border-y border-outline-variant">
+                  <tr>
+                    <th className="py-2 px-4 text-[10px] font-bold text-on-surface-variant uppercase">Field Name</th>
+                    <th className="py-2 px-4 text-[10px] font-bold text-on-surface-variant uppercase">Extracted Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant">
+                  {Object.entries(fields).map(([key, value]) => (
+                    <tr key={key}>
+                      <td className="py-3 px-4 text-label-md text-on-surface-variant w-1/3">
+                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                      </td>
+                      <td className="py-2 px-4">
+                        <input
+                          className="w-full border border-outline-variant rounded px-2 py-1.5 text-body-sm focus:ring-1 focus:ring-secondary"
+                          type="text"
+                          value={value ?? ''}
+                          onChange={(e) => setFields(f => ({ ...f, [key]: e.target.value }))}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-body-sm text-on-surface-variant text-center py-8">No extracted fields available.</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 bg-surface-container-high border-t border-outline-variant flex gap-3 shrink-0">
+          <button className="flex-1 px-4 py-2 border border-outline-variant bg-white rounded-lg text-label-md font-bold hover:bg-surface-container transition-colors" type="button">Flag For QC</button>
+          <button className="flex-1 px-4 py-2 bg-primary text-on-primary rounded-lg text-label-md font-bold hover:shadow-lg transition-all" type="button">Save Changes</button>
+        </div>
+      </div>
     </div>
   )
 }
 
-function IntegrityRow({ icon, label, status }) {
-  const skip = status === 'skip'
+function MissingDocCard({ label }) {
   return (
-    <div className={`flex items-center justify-between p-3 bg-surface-container rounded-lg border border-outline-variant ${skip ? 'opacity-60' : ''}`}>
-      <div className="flex items-center gap-3">
-        <span className={`material-symbols-outlined ${skip ? 'text-outline' : 'text-green-600'}`}>{icon}</span>
-        <span className="text-body-sm font-medium">{label}</span>
+    <div className="bg-white rounded-xl border border-dashed border-outline-variant p-12 flex flex-col items-center justify-center text-center space-y-4">
+      <div className="w-16 h-16 bg-surface-container-low rounded-full flex items-center justify-center">
+        <span className="material-symbols-outlined text-[32px] text-outline">upload_file</span>
       </div>
-      {skip
-        ? <span className="text-[10px] font-bold text-outline">AUTO-SKIPPED</span>
-        : <span className="material-symbols-outlined text-green-600 text-[18px]">done</span>
-      }
+      <div>
+        <h4 className="text-headline-sm text-on-surface">{label} Missing</h4>
+        <p className="text-body-md text-on-surface-variant max-w-sm mx-auto">This document has not been uploaded yet. You can upload it manually or request it from the client.</p>
+      </div>
+      <div className="flex gap-3">
+        <button className="px-4 py-2 border border-outline rounded-lg text-label-md font-bold hover:bg-surface-container transition-colors" type="button">Request Document</button>
+        <button className="px-4 py-2 bg-secondary text-on-secondary rounded-lg text-label-md font-bold hover:shadow-lg transition-all" type="button">Upload File</button>
+      </div>
     </div>
   )
 }
+
+// ─── Overview Tab ─────────────────────────────────────────────────────────────
 
 function SectionHeader({ children }) {
   return (
@@ -391,84 +487,13 @@ function Field({ label, children }) {
   )
 }
 
-function AiResultPanel({ result }) {
-  const isWarn = result.verificationStatus === 'needs_review'
-  const isSuspicious = result.verificationStatus === 'suspicious'
-  const statusColor = isSuspicious ? 'text-error' : isWarn ? 'text-amber-600' : 'text-green-700'
-  const statusBg = isSuspicious ? 'bg-error-container border-error/30' : isWarn ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'
-
-  return (
-    <div className="space-y-6">
-      {/* Summary */}
-      <div className={`p-4 rounded-lg border ${statusBg} flex items-start gap-3`}>
-        <span className={`material-symbols-outlined ${statusColor}`} style={{ fontVariationSettings: '"FILL" 1' }}>
-          {isSuspicious ? 'warning' : isWarn ? 'info' : 'verified'}
-        </span>
-        <div>
-          <p className={`text-label-md font-label-md uppercase tracking-wider ${statusColor}`}>{result.verificationStatus.replace('_', ' ')}</p>
-          <p className="text-body-sm text-on-surface mt-1">{result.summary}</p>
-        </div>
-      </div>
-
-      {/* Document type + confidence */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-label-md font-label-md text-on-surface-variant">DOCUMENT TYPE</p>
-          <p className="text-body-md font-bold text-on-surface mt-1">{result.documentType}</p>
-        </div>
-        <span className={`px-3 py-1 text-label-md font-label-md border rounded-full ${
-          result.confidenceScore >= 80 ? 'bg-green-50 text-green-700 border-green-200'
-          : result.confidenceScore >= 60 ? 'bg-amber-50 text-amber-700 border-amber-200'
-          : 'bg-error-container text-error border-error/30'
-        }`}>
-          {result.confidenceScore}% confidence
-        </span>
-      </div>
-
-      <div className="h-px bg-outline-variant" />
-
-      {/* Extracted fields */}
-      {Object.keys(result.extractedFields ?? {}).length > 0 && (
-        <div className="space-y-4">
-          <h4 className="text-label-md font-bold text-on-surface">EXTRACTED FIELDS</h4>
-          {Object.entries(result.extractedFields).map(([key, value]) => (
-            <div key={key} className="space-y-1">
-              <p className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">{key.replace(/_/g, ' ')}</p>
-              <input
-                className="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                defaultValue={value}
-                readOnly
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Fraud indicators */}
-      {result.fraudIndicators?.length > 0 && (
-        <>
-          <div className="h-px bg-outline-variant" />
-          <div className="space-y-3">
-            <h4 className="text-label-md font-bold text-error">FRAUD INDICATORS</h4>
-            {result.fraudIndicators.map((indicator, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 bg-error-container rounded-lg border border-error/20">
-                <span className="material-symbols-outlined text-error text-[18px]">flag</span>
-                <span className="text-body-sm text-on-surface">{indicator}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
 function OverviewContent({ appId, caseData }) {
   const fd = caseData?.formData ?? {}
   const isIndividual = !caseData || caseData.customerType === 'individual'
   const fullName = isIndividual
-    ? [fd.firstName, fd.middleName, fd.lastName].filter(Boolean).join(' ') || 'John Michael Doe'
-    : fd.legalEntityName || 'Starlight Global Holdings LLC'
+    ? [fd.firstName, fd.middleName, fd.lastName].filter(Boolean).join(' ') || '—'
+    : fd.legalEntityName || '—'
+  const productType = isIndividual ? 'Retail Banking' : 'Commercial Banking'
 
   return (
     <div className="space-y-stack-lg">
@@ -482,7 +507,7 @@ function OverviewContent({ appId, caseData }) {
             <Field label="Product">{caseData?.product || 'N/A'}</Field>
             <Field label="Status">
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-container-highest text-on-secondary-container capitalize">
-                {(caseData?.status || 'in_review').replace('_', ' ')}
+                {(caseData?.status || 'in_review').replace(/_/g, ' ')}
               </span>
             </Field>
             <Field label="Assigned Analyst">
@@ -497,12 +522,10 @@ function OverviewContent({ appId, caseData }) {
         <section className="bg-white rounded-lg border border-outline-variant overflow-hidden h-fit">
           <SectionHeader>Application Details</SectionHeader>
           <div className="p-stack-lg space-y-stack-lg">
-            <Field label="Product Type">Commercial Lending</Field>
-            <Field label="Product Variant">SME Growth Loan</Field>
-            <Field label="Priority Level">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-error-container text-error">
-                <span className="material-symbols-outlined text-[14px] mr-1">priority_high</span>High
-              </span>
+            <Field label="Product Type">{productType}</Field>
+            <Field label="Product Variant">{caseData?.product || '—'}</Field>
+            <Field label="Customer Type">
+              <span className="capitalize">{caseData?.customerType || '—'}</span>
             </Field>
           </div>
         </section>

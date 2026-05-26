@@ -77,7 +77,7 @@ export default function IndividualCasePage() {
     }
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const e = validate(values)
     if (Object.keys(e).length > 0) {
       setErrors(e)
