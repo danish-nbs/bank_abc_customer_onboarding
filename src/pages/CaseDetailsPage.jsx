@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { GetCommand } from '@aws-sdk/lib-dynamodb'
-import { GetObjectCommand } from '@aws-sdk/client-s3'
-import { dynamoClient, s3Client } from '../lib/awsClients'
+import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { InvokeCommand } from '@aws-sdk/client-lambda'
+import { dynamoClient, s3Client, lambdaClient } from '../lib/awsClients'
 import { awsConfig } from '../aws-config'
 import { currentUser } from '../data/mockData'
 
@@ -12,14 +13,27 @@ const REQUIRED_DOCS = {
   'Credit Card':       ['Passport / National ID', 'Utility Bill', 'Bank Statement', 'Selfie'],
   'Personal Loan':     ['Passport / National ID', 'Salary Certificate', 'Bank Statement', 'Selfie'],
   'SME Account':       ['Trade License', 'Certificate of Incorporation', 'Passport / National ID', 'Selfie'],
-  'Corporate Account': ['Trade License', 'MOA', 'Power of Attorney', 'Passport / National ID', 'Selfie'],
+  'Corporate Account': ['Trade License', 'Power of Attorney', 'Passport / National ID', 'Selfie'],
 }
 
 const DOC_TYPE_OPTIONS = {
   'Credit Card':       ['Passport', 'National ID', 'Utility Bill', 'Bank Statement', 'Selfie'],
   'Personal Loan':     ['Passport', 'National ID', 'Salary Certificate', 'Bank Statement', 'Selfie'],
   'SME Account':       ['Trade License', 'Certificate of Incorporation', 'Passport', 'National ID', 'Selfie'],
-  'Corporate Account': ['Trade License', 'MOA', 'Power of Attorney', 'Passport', 'National ID', 'Selfie'],
+  'Corporate Account': ['Trade License', 'Power of Attorney', 'Passport', 'National ID', 'Selfie'],
+}
+
+const REQUIRED_FIELDS_BY_DOC_TYPE = {
+  'Passport':                    ['fullName', 'passportNumber', 'nationality', 'dateOfBirth', 'gender', 'issueDate', 'expiryDate', 'issuingCountry'],
+  'National ID':                 ['fullName', 'idNumber', 'dateOfBirth', 'nationality', 'expiryDate', 'gender', 'address'],
+  'Utility Bill':                ['customerName', 'serviceAddress', 'billDate', 'accountNumber', 'utilityProvider'],
+  'Bank Statement':              ['accountHolderName', 'accountNumber', 'iban', 'bankName', 'statementStartDate', 'statementEndDate', 'closingBalance'],
+  'Selfie':                      [],
+  'Salary Certificate':          ['employeeName', 'employerName', 'employeeId', 'monthlySalary', 'netSalary', 'issueDate', 'jobTitle'],
+  'Trade License':               ['companyName', 'tradeLicenseNumber', 'businessActivity', 'issueDate', 'expiryDate', 'licensingAuthority'],
+  'Certificate of Incorporation':['companyName', 'registrationNumber', 'incorporationDate', 'country'],
+  'MOA':                         ['companyName', 'registrationNumber', 'authorizedSignatories', 'issueDate'],
+  'Power of Attorney':           ['principalName', 'attorneyName', 'effectiveDate', 'expiryDate', 'scope'],
 }
 
 export default function CaseDetailsPage() {
@@ -30,6 +44,7 @@ export default function CaseDetailsPage() {
   const [activeTab, setActiveTab] = useState(0)
   const [caseData, setCaseData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -47,7 +62,7 @@ export default function CaseDetailsPage() {
     }
     if (appId) load()
     else setLoading(false)
-  }, [appId])
+  }, [appId, refreshKey])
 
   const fd = caseData?.formData ?? {}
   const isIndividual = !caseData || caseData.customerType === 'individual'
@@ -161,7 +176,7 @@ export default function CaseDetailsPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex border-b border-outline-variant bg-background px-margin-desktop gap-8 overflow-x-auto scrollbar-hide shrink-0 mt-6">
+        <div className="flex border-b border-outline-variant bg-background px-margin-desktop gap-8 overflow-x-auto scrollbar-hide shrink-0">
           {TABS.map((tab, i) => (
             <button
               key={tab}
@@ -189,12 +204,12 @@ export default function CaseDetailsPage() {
         )}
 
         {activeTab === 1 && (
-          <main className="flex-1 overflow-y-auto p-margin-desktop bg-surface space-y-stack-lg main-scroll">
+          <div className="flex-1 overflow-hidden bg-surface">
             {loading
-              ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
-              : <DocumentsTab caseData={caseData} />
+              ? <div className="text-body-md text-on-surface-variant text-center py-16">Loading case data...</div>
+              : <DocumentsTab caseData={caseData} onRefresh={() => { setLoading(true); setRefreshKey(k => k + 1) }} />
             }
-          </main>
+          </div>
         )}
 
       </div>
@@ -204,73 +219,320 @@ export default function CaseDetailsPage() {
 
 // ─── Documents Tab ────────────────────────────────────────────────────────────
 
-function DocumentsTab({ caseData }) {
+const STATUS_STYLES = {
+  'Approved':          { text: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200' },
+  'Rejected':          { text: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-200'   },
+  'Needs Review':      { text: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200' },
+  'Reupload Required': { text: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200'},
+}
+
+function matchesRequired(docType, requiredLabel) {
+  if (requiredLabel.includes(' / ')) {
+    return requiredLabel.split(' / ').some(t => t.trim() === docType)
+  }
+  return docType === requiredLabel
+}
+
+function DocumentsTab({ caseData, onRefresh }) {
   const product = caseData?.product ?? ''
   const uploadedDocs = caseData?.documents ?? []
-  const aiResults = caseData?.aiResults ?? []
+  const [aiResults, setAiResults] = useState(caseData?.aiResults ?? [])
+  const [selectedSlot, setSelectedSlot] = useState(0)
+  const [activeView, setActiveView] = useState('slot') // 'slot' | 'unmatched'
+  const [selectedUnmatched, setSelectedUnmatched] = useState(null) // index into uploadedDocs
+  const [uploading, setUploading] = useState(false)
+  const [toast, setToast] = useState(null)
+  const uploadInputRef = useRef(null)
   const required = REQUIRED_DOCS[product] ?? []
   const typeOptions = DOC_TYPE_OPTIONS[product] ?? []
 
-  const completeness = required.length > 0
-    ? Math.min(100, Math.round((uploadedDocs.length / required.length) * 100))
-    : 0
-  const circumference = 251.2
-  const dashOffset = circumference * (1 - completeness / 100)
+  function showToast(title, subtitle = '') {
+    setToast({ title, subtitle })
+    setTimeout(() => setToast(null), 3500)
+  }
 
-  const missingRequired = required.slice(uploadedDocs.length)
+  function handleRequestDocuments() {
+    showToast('Document request sent successfully.', 'The customer will be prompted to re-submit via the onboarding portal.')
+  }
+
+  async function handleUpload(e) {
+    const fileList = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (!fileList.length || !caseData?.appId) return
+    const appId = caseData.appId
+    setUploading(true)
+    try {
+      const newDocs = []
+      for (const file of fileList) {
+        const key = `${appId}/${Date.now()}-${file.name}`
+        await s3Client.send(new PutObjectCommand({
+          Bucket: awsConfig.s3BucketName,
+          Key: key,
+          Body: new Uint8Array(await file.arrayBuffer()),
+          ContentType: file.type || 'application/octet-stream',
+        }))
+        newDocs.push({ key, name: file.name, uploadedAt: new Date().toISOString() })
+      }
+      await dynamoClient.send(new UpdateCommand({
+        TableName: awsConfig.dynamoTableName,
+        Key: { appId },
+        UpdateExpression: 'SET documents = list_append(if_not_exists(documents, :empty), :newDocs), updatedAt = :ts',
+        ExpressionAttributeValues: { ':empty': [], ':newDocs': newDocs, ':ts': new Date().toISOString() },
+      }))
+      // Snapshot analyst annotations before Lambda overwrites aiResults
+      const annotationsByKey = {}
+      for (const r of aiResults) {
+        if (r?.documentKey && r.verificationStatus) {
+          annotationsByKey[r.documentKey] = { verificationStatus: r.verificationStatus }
+        }
+      }
+      await lambdaClient.send(new InvokeCommand({
+        FunctionName: awsConfig.classifyDocumentFunctionName,
+        Payload: new TextEncoder().encode(JSON.stringify({ appId, documentKeys: newDocs.map(d => d.key) })),
+      }))
+      // Merge analyst annotations back into fresh aiResults
+      const fresh = await dynamoClient.send(new GetCommand({ TableName: awsConfig.dynamoTableName, Key: { appId } }))
+      const newAiResults = fresh.Item?.aiResults ?? []
+      const merged = newAiResults.map(r =>
+        annotationsByKey[r.documentKey] ? { ...r, ...annotationsByKey[r.documentKey] } : r
+      )
+      if (merged.some((r, i) => r !== newAiResults[i])) {
+        await dynamoClient.send(new UpdateCommand({
+          TableName: awsConfig.dynamoTableName,
+          Key: { appId },
+          UpdateExpression: 'SET aiResults = :ai',
+          ExpressionAttributeValues: { ':ai': merged },
+        }))
+      }
+      onRefresh?.()
+    } catch (err) {
+      console.error('Upload failed:', err)
+      showToast('Upload failed.', 'Please check your connection and try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function handleDocSave(docIndex, updatedResult) {
+    setAiResults(prev => {
+      const next = [...prev]
+      next[docIndex] = { ...prev[docIndex], ...updatedResult }
+      return next
+    })
+  }
+
+  const completeness = (() => {
+    let total = 0
+    let filled = 0
+    for (const requiredLabel of required) {
+      const matchingResult = aiResults.reduce((last, r) => matchesRequired(r?.documentType, requiredLabel) ? r : last, null)
+      const docType = matchingResult?.documentType
+        ?? (requiredLabel.includes(' / ') ? requiredLabel.split(' / ')[0].trim() : requiredLabel)
+      const requiredKeys = REQUIRED_FIELDS_BY_DOC_TYPE[docType] ?? []
+      total += requiredKeys.length
+      if (matchingResult) {
+        const extractedFields = matchingResult.extractedFields ?? {}
+        for (const key of requiredKeys) {
+          const val = extractedFields[key]
+          const flat = typeof val === 'object' && val !== null ? (val.value ?? '') : val
+          if (flat !== '' && flat !== null && flat !== undefined) filled++
+        }
+      }
+    }
+    return total === 0 ? 0 : Math.round((filled / total) * 100)
+  })()
+
+  // Which uploadedDocs indices are claimed by a required slot
+  const matchedIndices = new Set(
+    required
+      .map(label => uploadedDocs.reduce((last, _, j) => matchesRequired(aiResults[j]?.documentType, label) ? j : last, -1))
+      .filter(i => i >= 0)
+  )
+
+  // Docs that didn't match any required slot (unclassified or unexpected type)
+  const unmatchedDocs = uploadedDocs
+    .map((doc, i) => ({ doc, index: i, aiResult: aiResults[i] }))
+    .filter(({ index }) => !matchedIndices.has(index))
+
+  const selectedLabel = required[selectedSlot] ?? ''
+  const matchingDocIndex = uploadedDocs.reduce((last, _, i) =>
+    matchesRequired(aiResults[i]?.documentType, selectedLabel) ? i : last, -1)
+  const selectedDoc = matchingDocIndex >= 0 ? uploadedDocs[matchingDocIndex] : null
+  const selectedAiResult = matchingDocIndex >= 0 ? aiResults[matchingDocIndex] : null
+
+  const completenessColor = completeness === 100 ? 'text-green-600' : completeness >= 70 ? 'text-secondary' : 'text-amber-600'
+  const completenessBar = completeness === 100 ? 'bg-green-500' : completeness >= 70 ? 'bg-secondary' : 'bg-amber-500'
 
   return (
-    <>
-      {/* Completeness Section */}
-      <div className="bg-white p-6 rounded-xl border border-outline-variant shadow-sm flex items-start gap-12">
-        <div className="flex-shrink-0 flex flex-col items-center gap-2">
-          <div className="relative w-24 h-24">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 96 96">
-              <circle className="text-surface-container-highest" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" strokeWidth="8" />
-              <circle className="text-secondary" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" strokeDasharray={circumference} strokeDashoffset={dashOffset} strokeLinecap="round" strokeWidth="8" />
-            </svg>
-            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-headline-sm font-bold text-primary">{completeness}%</span>
+    <div className="flex h-full overflow-hidden">
+
+      {/* Sidebar */}
+      <aside className="w-72 shrink-0 border-r border-outline-variant flex flex-col bg-surface-container-low">
+        {/* Completeness bar */}
+        <div className="p-4 border-b border-outline-variant shrink-0">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-label-md font-bold text-on-surface">Data Completeness</span>
+            <span className={`text-label-md font-bold ${completenessColor}`}>{completeness}%</span>
           </div>
-          <p className="text-label-md font-bold text-on-surface-variant">Completeness</p>
+          <div className="h-2 bg-surface-container-highest rounded-full overflow-hidden">
+            <div className={`h-full rounded-full transition-all duration-500 ${completenessBar}`} style={{ width: `${completeness}%` }} />
+          </div>
         </div>
-        <div className="flex-1">
-          <h3 className="text-headline-sm mb-4">Required Documents Checklist</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {required.map((label, i) => {
-              const uploaded = i < uploadedDocs.length
-              return (
-                <div key={label} className={`flex items-center gap-3 p-3 rounded-lg border ${uploaded ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-                  <span className={`material-symbols-outlined ${uploaded ? 'text-green-600' : 'text-amber-600'}`}>
-                    {uploaded ? 'check_circle' : 'pending'}
-                  </span>
-                  <span className="text-body-sm font-medium">{label}</span>
+
+        {/* Actions */}
+        <div className="p-3 border-b border-outline-variant flex gap-2 shrink-0">
+          <input ref={uploadInputRef} type="file" multiple className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleUpload} />
+          <button
+            type="button"
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={uploading}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary text-on-secondary rounded-lg text-label-md font-bold hover:shadow-md transition-all disabled:opacity-60"
+          >
+            <span className={`material-symbols-outlined text-[16px] ${uploading ? 'animate-spin' : ''}`}>
+              {uploading ? 'progress_activity' : 'upload'}
+            </span>
+            {uploading ? 'Processing…' : 'Upload Documents'}
+          </button>
+          <button
+            type="button"
+            onClick={handleRequestDocuments}
+            disabled={uploading}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-outline-variant rounded-lg text-label-md font-bold hover:bg-surface-container transition-colors disabled:opacity-60"
+          >
+            <span className="material-symbols-outlined text-[16px]">send</span>
+            Request
+          </button>
+        </div>
+
+        {/* Document slots */}
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
+          {required.map((label, i) => {
+            const matchIdx = uploadedDocs.reduce((last, _, j) => matchesRequired(aiResults[j]?.documentType, label) ? j : last, -1)
+            const isUploaded = matchIdx >= 0
+            const result = isUploaded ? aiResults[matchIdx] : null
+            const status = result?.verificationStatus ?? (isUploaded ? 'Needs Review' : null)
+            const isSelected = i === selectedSlot
+            const s = STATUS_STYLES[status] ?? null
+
+            return (
+              <button
+                key={label}
+                onClick={() => { setSelectedSlot(i); setActiveView('slot') }}
+                type="button"
+                className={`w-full text-left px-4 py-3 border-b border-outline-variant flex items-center gap-3 transition-colors ${
+                  activeView === 'slot' && isSelected ? 'bg-secondary-container border-l-2 border-l-secondary' : 'hover:bg-surface-container'
+                }`}
+              >
+                <span
+                  className={`material-symbols-outlined text-[20px] shrink-0 ${isUploaded ? 'text-secondary' : 'text-outline'}`}
+                  style={isUploaded ? { fontVariationSettings: '"FILL" 1' } : {}}
+                >
+                  {isUploaded ? 'description' : 'upload_file'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-label-md font-bold truncate ${activeView === 'slot' && isSelected ? 'text-on-secondary-container' : 'text-on-surface'}`}>{label}</p>
+                  {s ? (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${s.text} ${s.bg} ${s.border}`}>
+                      {status.toUpperCase()}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-outline">MISSING</span>
+                  )}
                 </div>
-              )
-            })}
-          </div>
+              </button>
+            )
+          })}
+
+          {/* Unmatched / unclassified documents */}
+          {unmatchedDocs.length > 0 && (
+            <>
+              <div className="px-4 py-2 flex items-center gap-2 bg-surface-container border-y border-outline-variant">
+                <span className="text-[10px] font-bold text-on-surface-variant tracking-wider uppercase flex-1">Other Documents</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{unmatchedDocs.length}</span>
+              </div>
+              {unmatchedDocs.map(({ doc, index, aiResult }) => {
+                const docType = aiResult?.documentType ?? 'Unclassified'
+                const status = aiResult?.verificationStatus ?? null
+                const isSelected = activeView === 'unmatched' && selectedUnmatched === index
+                const s = STATUS_STYLES[status] ?? null
+                const isUnclassified = docType === 'Unclassified' || !aiResult
+
+                return (
+                  <button
+                    key={index}
+                    onClick={() => { setSelectedUnmatched(index); setActiveView('unmatched') }}
+                    type="button"
+                    className={`w-full text-left px-4 py-3 border-b border-outline-variant flex items-center gap-3 transition-colors ${
+                      isSelected ? 'bg-secondary-container border-l-2 border-l-secondary' : 'hover:bg-surface-container'
+                    }`}
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[20px] shrink-0 ${isUnclassified ? 'text-amber-500' : 'text-secondary'}`}
+                      style={{ fontVariationSettings: '"FILL" 1' }}
+                    >
+                      {isUnclassified ? 'help' : 'description'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-label-md font-bold truncate ${isSelected ? 'text-on-secondary-container' : 'text-on-surface'}`}>
+                        {doc.name ?? doc.key?.split('/').pop() ?? 'Document'}
+                      </p>
+                      {s ? (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${s.text} ${s.bg} ${s.border}`}>
+                          {status.toUpperCase()}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700">
+                          {isUnclassified ? 'UNCLASSIFIED' : docType.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </>
+          )}
         </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 overflow-hidden">
+        {activeView === 'unmatched' && selectedUnmatched !== null
+          ? <DocumentReviewPanel key={uploadedDocs[selectedUnmatched]?.key} doc={uploadedDocs[selectedUnmatched]} aiResult={aiResults[selectedUnmatched]} allAiResults={aiResults} docIndex={selectedUnmatched} typeOptions={typeOptions} appId={caseData?.appId} onSave={handleDocSave} />
+          : selectedDoc
+            ? <DocumentReviewPanel key={selectedDoc.key} doc={selectedDoc} aiResult={selectedAiResult} allAiResults={aiResults} docIndex={matchingDocIndex} typeOptions={typeOptions} appId={caseData?.appId} onSave={handleDocSave} />
+            : <MissingDocPanel label={selectedLabel} />
+        }
       </div>
 
-      {/* Document Cards */}
-      <div className="space-y-stack-lg">
-        {uploadedDocs.map((doc, i) => (
-          <DocumentCard key={doc.key} doc={doc} aiResult={aiResults[i]} typeOptions={typeOptions} />
-        ))}
-        {missingRequired.map((label) => (
-          <MissingDocCard key={label} label={label} />
-        ))}
-      </div>
-    </>
+      {/* Toast */}
+      {toast && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="flex items-center gap-3 bg-white border border-outline-variant rounded-xl shadow-2xl px-6 py-4 pointer-events-auto">
+            <div className="w-8 h-8 rounded-full bg-green-50 border border-green-200 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[18px] text-green-600" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+            </div>
+            <div>
+              <p className="text-label-md font-bold text-on-surface">{toast.title}</p>
+              <p className="text-body-sm text-on-surface-variant">{toast.subtitle}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
-function DocumentCard({ doc, aiResult, typeOptions }) {
+// ─── Document Review Panel ────────────────────────────────────────────────────
+
+function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOptions, appId, onSave }) {
   const [zoom, setZoom] = useState(1)
   const [detectedType, setDetectedType] = useState(aiResult?.documentType ?? (typeOptions[0] ?? ''))
-  const [status, setStatus] = useState('Needs Review')
-  const [notes, setNotes] = useState('')
+  const [status, setStatus] = useState(aiResult?.verificationStatus ?? 'Needs Review')
   const [docUrl, setDocUrl] = useState(null)
   const [isPdf, setIsPdf] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(null)
+  const [isDirty, setIsDirty] = useState(false)
   const [fields, setFields] = useState(() => {
     const raw = aiResult?.extractedFields ?? {}
     const result = {}
@@ -280,7 +542,11 @@ function DocumentCard({ doc, aiResult, typeOptions }) {
     return result
   })
 
-  const confidence = aiResult?.confidenceScore ?? null
+  useEffect(() => {
+    const requiredKeys = REQUIRED_FIELDS_BY_DOC_TYPE[detectedType] ?? []
+    setFields(prev => Object.fromEntries(requiredKeys.map(k => [k, prev[k] ?? ''])))
+  }, [detectedType])
+
   const filename = doc.name ?? doc.key?.split('/').pop() ?? 'Document'
 
   useEffect(() => {
@@ -288,10 +554,7 @@ function DocumentCard({ doc, aiResult, typeOptions }) {
     let objectUrl
     async function fetchDoc() {
       try {
-        const obj = await s3Client.send(new GetObjectCommand({
-          Bucket: awsConfig.s3BucketName,
-          Key: doc.key,
-        }))
+        const obj = await s3Client.send(new GetObjectCommand({ Bucket: awsConfig.s3BucketName, Key: doc.key }))
         const contentType = obj.ContentType || ''
         const bytes = await obj.Body.transformToByteArray()
         const blob = new Blob([bytes], { type: contentType || 'application/octet-stream' })
@@ -306,27 +569,59 @@ function DocumentCard({ doc, aiResult, typeOptions }) {
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [doc.key])
 
-  function changeZoom(delta) {
-    setZoom(z => Math.min(Math.max(0.5, z + delta), 2.0))
+  function handleFieldChange(key, value) {
+    setIsDirty(true)
+    setFields(f => ({ ...f, [key]: value }))
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const updated = [...(allAiResults ?? [])]
+      while (updated.length <= docIndex) updated.push({})
+      updated[docIndex] = {
+        ...updated[docIndex],
+        documentType: detectedType,
+        extractedFields: fields,
+        verificationStatus: status,
+      }
+      await dynamoClient.send(new UpdateCommand({
+        TableName: awsConfig.dynamoTableName,
+        Key: { appId },
+        UpdateExpression: 'SET aiResults = :ai, updatedAt = :ts',
+        ExpressionAttributeValues: {
+          ':ai': updated,
+          ':ts': new Date().toISOString(),
+        },
+      }))
+      setIsDirty(false)
+      onSave?.(docIndex, { documentType: detectedType, extractedFields: fields, verificationStatus: status })
+    } catch (err) {
+      console.error('Failed to save document:', err)
+      setSaveError('Save failed. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden flex h-[700px]">
+    <div className="flex h-full overflow-hidden">
 
       {/* Left: Viewer */}
-      <div className="w-1/2 bg-surface-container-low relative document-overlay overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-outline-variant bg-white flex justify-between items-center shrink-0">
-          <span className="text-label-md font-bold text-primary flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">visibility</span>
-            VIEWER: {filename}
+      <div className="w-[55%] shrink-0 bg-surface-container-low document-overlay overflow-hidden flex flex-col border-r border-outline-variant">
+        <div className="p-3 border-b border-outline-variant bg-white flex justify-between items-center shrink-0">
+          <span className="text-label-md font-bold text-primary flex items-center gap-2 truncate">
+            <span className="material-symbols-outlined text-[18px] shrink-0">visibility</span>
+            <span className="truncate">{filename}</span>
           </span>
-          <div className="flex items-center gap-1 bg-primary text-on-primary rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-primary text-on-primary rounded-lg p-1 shrink-0 ml-2">
             {!isPdf && <>
-              <button className="p-1 hover:bg-white/10 rounded" onClick={() => changeZoom(-0.1)} type="button">
+              <button className="p-1 hover:bg-white/10 rounded" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))} type="button">
                 <span className="material-symbols-outlined text-[18px]">zoom_out</span>
               </button>
               <span className="px-2 text-[10px] font-bold">{Math.round(zoom * 100)}%</span>
-              <button className="p-1 hover:bg-white/10 rounded" onClick={() => changeZoom(0.1)} type="button">
+              <button className="p-1 hover:bg-white/10 rounded" onClick={() => setZoom(z => Math.min(2.0, z + 0.1))} type="button">
                 <span className="material-symbols-outlined text-[18px]">zoom_in</span>
               </button>
               <div className="w-px h-4 bg-white/20 mx-1" />
@@ -345,124 +640,169 @@ function DocumentCard({ doc, aiResult, typeOptions }) {
             <iframe src={docUrl} className="w-full h-full border-0" title={filename} />
           ) : (
             <div className="w-full h-full overflow-auto p-4 flex justify-center items-start">
-              <img
-                src={docUrl}
-                alt={filename}
-                className="max-w-full h-auto transition-transform duration-200"
-                style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
-              />
+              <img src={docUrl} alt={filename} className="max-w-full h-auto transition-transform duration-200" style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }} />
             </div>
           )}
         </div>
       </div>
 
-      {/* Right: Details */}
-      <div className="flex-1 flex flex-col border-l border-outline-variant overflow-hidden">
+      {/* Right: Review panel */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-white">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-5 space-y-5">
 
-        {/* Detected As & Status */}
-        <div className="p-6 border-b border-outline-variant space-y-6 shrink-0">
-          <div className="flex justify-between items-start">
-            <div className="space-y-2 flex-1 pr-4">
-              <label className="text-label-md font-bold text-on-surface-variant">DETECTED AS</label>
-              <div className="flex items-center gap-3">
-                <select
-                  className="flex-1 bg-white border border-outline-variant rounded-lg px-3 py-2 text-body-md focus:ring-2 focus:ring-secondary"
-                  value={detectedType}
-                  onChange={(e) => setDetectedType(e.target.value)}
-                >
-                  {typeOptions.map(opt => <option key={opt}>{opt}</option>)}
-                  {detectedType && !typeOptions.includes(detectedType) && <option>{detectedType}</option>}
-                </select>
-                {confidence !== null && (
-                  <span className="px-2 py-1 bg-green-100 text-green-800 text-[10px] font-bold rounded border border-green-200 whitespace-nowrap">
-                    {confidence}% CONFIDENCE
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2 w-48">
-              <label className="text-label-md font-bold text-on-surface-variant">STATUS</label>
+          {/* Document type + status */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-on-surface-variant tracking-wider">DOCUMENT TYPE</label>
+            <div className="flex items-center gap-2">
               <select
-                className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-body-md font-bold focus:ring-2 focus:ring-secondary"
+                className="flex-1 pl-2.5 pr-2 py-1.5 rounded-full border border-outline-variant bg-white text-[11px] font-bold text-on-surface cursor-pointer focus:outline-none"
+                value={detectedType}
+                onChange={(e) => { setIsDirty(true); setDetectedType(e.target.value) }}
+              >
+                {typeOptions.map(opt => <option key={opt}>{opt}</option>)}
+                <option value="Unclassified">Unclassified</option>
+              </select>
+              <select
+                className={`pl-2.5 pr-2 py-1.5 rounded-full border text-[11px] font-bold cursor-pointer focus:outline-none transition-colors ${
+                  status === 'Approved'          ? 'bg-green-100 text-green-800 border-green-300' :
+                  status === 'Rejected'          ? 'bg-red-100 text-red-800 border-red-300' :
+                  status === 'Needs Review'      ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                  'bg-orange-100 text-orange-800 border-orange-300'
+                }`}
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => { setIsDirty(true); setStatus(e.target.value) }}
               >
                 <option>Approved</option>
                 <option>Rejected</option>
                 <option>Needs Review</option>
+                <option>Reupload Required</option>
               </select>
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-label-md font-bold text-on-surface-variant">REASON / NOTES</label>
-            <textarea
-              className="w-full bg-white border border-outline-variant rounded-lg px-4 py-2 text-body-md focus:ring-2 focus:ring-secondary h-16 resize-none"
-              placeholder="Add a note..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-        </div>
 
-        {/* Extracted Fields */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-6">
-          {Object.keys(fields).length > 0 ? (
-            <div className="space-y-3">
-              <h4 className="text-label-md font-bold text-on-surface">EXTRACTED FIELDS</h4>
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-surface-container-high border-y border-outline-variant">
-                  <tr>
-                    <th className="py-2 px-4 text-[10px] font-bold text-on-surface-variant uppercase">Field Name</th>
-                    <th className="py-2 px-4 text-[10px] font-bold text-on-surface-variant uppercase">Extracted Value</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant">
-                  {Object.entries(fields).map(([key, value]) => (
+          {/* Quality checks */}
+          <QualityChecksPanel qualityChecks={aiResult?.qualityChecks} />
+
+          {/* Extracted fields */}
+          {detectedType !== 'Selfie' && (
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-on-surface-variant tracking-wider">EXTRACTED FIELDS</label>
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-surface-container-high border-y border-outline-variant">
+                <tr>
+                  <th className="py-2 px-3 text-[10px] font-bold text-on-surface-variant uppercase w-2/5">Field</th>
+                  <th className="py-2 px-3 text-[10px] font-bold text-on-surface-variant uppercase">Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant">
+                {Object.entries(fields).map(([key, value]) => {
+                  return (
                     <tr key={key}>
-                      <td className="py-3 px-4 text-label-md text-on-surface-variant w-1/3">
+                      <td className="py-2 px-3 text-label-md text-on-surface-variant">
                         {key.replace(/([A-Z])/g, ' $1').trim()}
                       </td>
-                      <td className="py-2 px-4">
-                        <input
-                          className="w-full border border-outline-variant rounded px-2 py-1.5 text-body-sm focus:ring-1 focus:ring-secondary"
-                          type="text"
-                          value={value ?? ''}
-                          onChange={(e) => setFields(f => ({ ...f, [key]: e.target.value }))}
-                        />
+                      <td className="py-1.5 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            className={`flex-1 border rounded px-2 py-1.5 text-body-sm focus:ring-1 focus:ring-secondary ${value ? 'border-outline-variant' : 'border-amber-300 bg-amber-50'}`}
+                            type="text"
+                            value={value ?? ''}
+                            onChange={(e) => handleFieldChange(key, e.target.value)}
+                          />
+                        </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-body-sm text-on-surface-variant text-center py-8">No extracted fields available.</p>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
           )}
+
+
         </div>
 
-        {/* Footer */}
-        <div className="p-4 bg-surface-container-high border-t border-outline-variant flex gap-3 shrink-0">
-          <button className="flex-1 px-4 py-2 border border-outline-variant bg-white rounded-lg text-label-md font-bold hover:bg-surface-container transition-colors" type="button">Flag For QC</button>
-          <button className="flex-1 px-4 py-2 bg-primary text-on-primary rounded-lg text-label-md font-bold hover:shadow-lg transition-all" type="button">Save Changes</button>
+        {/* Save footer */}
+        <div className="p-4 bg-surface-container-high border-t border-outline-variant shrink-0">
+          {saveError && <p className="text-body-sm text-error text-center mb-2">{saveError}</p>}
+          <button
+            className="w-full px-4 py-2 bg-primary text-on-primary rounded-lg text-label-md font-bold hover:shadow-lg transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !isDirty}
+          >
+            {saving ? (
+              <>
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Saving...
+              </>
+            ) : 'Save Changes'}
+          </button>
         </div>
       </div>
     </div>
   )
 }
 
-function MissingDocCard({ label }) {
+// ─── Quality Checks Panel ─────────────────────────────────────────────────────
+
+function QualityChecksPanel({ qualityChecks }) {
+  if (!qualityChecks) return null
+
+  const checks = [
+    { key: 'imageClarity',      label: 'Image Clarity'      },
+    { key: 'fullyVisible',      label: 'Fully Visible'      },
+    { key: 'notExpired',        label: 'Not Expired'        },
+    { key: 'noTampering',       label: 'No Tampering'       },
+    { key: 'mrzValid',          label: 'MRZ Valid'          },
+    { key: 'faceVisible',       label: 'Face Visible'       },
+    { key: 'livenessIndicator', label: 'Liveness'           },
+  ]
+
+  const styles = {
+    pass: { icon: 'check_circle', cls: 'text-green-600', bg: 'bg-green-50',  label: 'PASS' },
+    warn: { icon: 'warning',      cls: 'text-amber-600', bg: 'bg-amber-50',  label: 'WARN' },
+    fail: { icon: 'cancel',       cls: 'text-red-600',   bg: 'bg-red-50',    label: 'FAIL' },
+    na:   { icon: 'remove',       cls: 'text-outline',   bg: 'bg-surface-container-low', label: 'N/A' },
+  }
+
+  const visible = checks.filter(({ key }) => (qualityChecks[key] ?? 'na') !== 'na')
+  if (!visible.length) return null
+
   return (
-    <div className="bg-white rounded-xl border border-dashed border-outline-variant p-12 flex flex-col items-center justify-center text-center space-y-4">
-      <div className="w-16 h-16 bg-surface-container-low rounded-full flex items-center justify-center">
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-bold text-on-surface-variant tracking-wider">QUALITY CHECKS</label>
+      <div className="flex flex-wrap gap-1.5">
+        {visible.map(({ key, label }) => {
+          const s = styles[qualityChecks[key]] ?? styles.na
+          return (
+            <span key={key} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${s.cls} ${s.bg} border-current/20`}>
+              <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: '"FILL" 1' }}>{s.icon}</span>
+              {label}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Missing Doc Panel ────────────────────────────────────────────────────────
+
+function MissingDocPanel({ label }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-4 bg-surface">
+      <div className="w-16 h-16 bg-surface-container-low rounded-full flex items-center justify-center border-2 border-dashed border-outline-variant">
         <span className="material-symbols-outlined text-[32px] text-outline">upload_file</span>
       </div>
       <div>
         <h4 className="text-headline-sm text-on-surface">{label} Missing</h4>
-        <p className="text-body-md text-on-surface-variant max-w-sm mx-auto">This document has not been uploaded yet. You can upload it manually or request it from the client.</p>
-      </div>
-      <div className="flex gap-3">
-        <button className="px-4 py-2 border border-outline rounded-lg text-label-md font-bold hover:bg-surface-container transition-colors" type="button">Request Document</button>
-        <button className="px-4 py-2 bg-secondary text-on-secondary rounded-lg text-label-md font-bold hover:shadow-lg transition-all" type="button">Upload File</button>
+        <p className="text-body-md text-on-surface-variant max-w-sm mx-auto mt-1">
+          This document has not been uploaded yet. Use <strong>Upload Documents</strong> in the sidebar to add it, or <strong>Request</strong> to notify the customer.
+        </p>
       </div>
     </div>
   )

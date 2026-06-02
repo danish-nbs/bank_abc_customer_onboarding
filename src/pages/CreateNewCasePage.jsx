@@ -335,13 +335,25 @@ export default function CreateNewCasePage() {
                     Cancel
                   </button>
                   <button
-                    className="px-8 py-2.5 bg-primary text-white text-label-md font-label-md rounded hover:bg-primary/90 shadow-md transition-all active:scale-95 flex items-center"
+                    className="px-8 py-2.5 bg-primary text-white text-label-md font-label-md rounded hover:bg-primary/90 shadow-md transition-all active:scale-95 flex items-center disabled:opacity-70 disabled:cursor-not-allowed"
                     type="button"
                     onClick={handleCreateCase}
                     disabled={saving}
                   >
-                    <span className="material-symbols-outlined mr-2">check_circle</span>
-                    Create Case
+                    {saving ? (
+                      <>
+                        <svg className="animate-spin mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Creating Case...
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined mr-2">check_circle</span>
+                        Create Case
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

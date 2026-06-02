@@ -189,10 +189,13 @@ Resources:
           MODEL: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0'
           PROMPT_PARAM: !Ref ClassifyDocumentPrompt
           TABLE: !Ref CasesTable
+          LOG_LEVEL: 'INFO'
       Code:
         ZipFile: |
-          import json, os, base64, boto3
+          import json, os, base64, logging, boto3
           from datetime import datetime, timezone
+          logger = logging.getLogger()
+          logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
           s3 = boto3.client('s3')
           bedrock = boto3.client('bedrock-runtime')
           ssm = boto3.client('ssm')
@@ -205,53 +208,76 @@ Resources:
               'Credit Card':       ['Passport', 'National ID', 'Utility Bill', 'Bank Statement', 'Selfie'],
               'Personal Loan':     ['Passport', 'National ID', 'Salary Certificate', 'Bank Statement', 'Selfie'],
               'SME Account':       ['Trade License', 'Certificate of Incorporation', 'Passport', 'National ID', 'Selfie'],
-              'Corporate Account': ['Trade License', 'MOA', 'Power of Attorney', 'Passport', 'National ID', 'Selfie'],
+              'Corporate Account': ['Trade License', 'Power of Attorney', 'Passport', 'National ID', 'Selfie'],
           }
           CLASSIFICATION_PROMPT = ssm.get_parameter(Name=PROMPT_PARAM)['Parameter']['Value']
+          def _log(event, **kw): logger.info(json.dumps({'event': event, **kw}))
           def _fetch_block(key):
               obj = s3.get_object(Bucket=BUCKET, Key=key)
               ct = obj.get('ContentType', 'image/jpeg')
               b64 = base64.b64encode(obj['Body'].read()).decode()
               return {'type': 'document' if ct == 'application/pdf' else 'image', 'source': {'type': 'base64', 'media_type': ct, 'data': b64}}
-          def lambda_handler(event, _context):
+          def lambda_handler(event, context):
               app_id = event.get('appId')
+              new_doc_keys = set(event.get('documentKeys') or [])
+              _log('lambda_invoked', appId=app_id, requestId=context.aws_request_id, newDocKeys=list(new_doc_keys))
               if not app_id:
+                  _log('validation_error', error='appId is required')
                   return {'statusCode': 400, 'body': json.dumps({'error': 'appId is required'})}
               table = dynamodb.Table(TABLE_NAME)
               case = table.get_item(Key={'appId': app_id}).get('Item')
               if not case:
+                  _log('case_not_found', appId=app_id)
                   return {'statusCode': 404, 'body': json.dumps({'error': f'Case {app_id} not found'})}
               product = case.get('product')
               docs = case.get('documents', [])
               if not product:
+                  _log('validation_error', appId=app_id, error='no product type')
                   return {'statusCode': 400, 'body': json.dumps({'error': 'Case has no product type'})}
               if not docs:
+                  _log('validation_error', appId=app_id, error='no documents')
                   return {'statusCode': 400, 'body': json.dumps({'error': 'Case has no documents'})}
               types = DOCUMENT_TYPES.get(product)
               if not types:
+                  _log('validation_error', appId=app_id, error=f'Unknown product: {product}')
                   return {'statusCode': 400, 'body': json.dumps({'error': f'Unknown product: {product}'})}
-              blocks = [_fetch_block(d['key']) for d in docs]
-              prompt = CLASSIFICATION_PROMPT.replace('{product_type}', product).replace('{expected_list}', ', '.join(types)).replace('{doc_count}', str(len(docs)))
+              to_process = [d for d in docs if d['key'] in new_doc_keys] if new_doc_keys else docs
+              blocks = [_fetch_block(d['key']) for d in to_process]
+              prompt = CLASSIFICATION_PROMPT.replace('{product_type}', product).replace('{expected_list}', ', '.join(types)).replace('{doc_count}', str(len(to_process)))
               blocks.append({'type': 'text', 'text': prompt})
+              _log('bedrock_request', appId=app_id, modelId=MODEL, documentCount=len(to_process),
+                   documentKeys=[d['key'] for d in to_process], productType=product, expectedTypes=types,
+                   prompt=prompt, maxTokens=1024)
               resp = bedrock.invoke_model(modelId=MODEL, contentType='application/json', accept='application/json',
-                  body=json.dumps({'anthropic_version': 'bedrock-2023-05-31', 'max_tokens': 1024,
+                  body=json.dumps({'anthropic_version': 'bedrock-2023-05-31', 'max_tokens': 4096,
                       'messages': [{'role': 'user', 'content': blocks}]}))
-              text = json.loads(resp['body'].read())['content'][0]['text'].strip()
+              resp_body = json.loads(resp['body'].read())
+              text = resp_body['content'][0]['text'].strip()
+              _log('bedrock_response', appId=app_id, modelId=MODEL, stopReason=resp_body.get('stop_reason'),
+                   inputTokens=resp_body.get('usage', {}).get('input_tokens'),
+                   outputTokens=resp_body.get('usage', {}).get('output_tokens'), rawText=text)
               if text.startswith('```'):
                   text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
               classifications = json.loads(text)
-              results = []
-              for i, doc in enumerate(docs):
+              new_results = []
+              for i, doc in enumerate(to_process):
                   r = classifications[i] if i < len(classifications) else {}
                   if r.get('documentType') not in types:
                       r['documentType'] = 'Unclassified'
-                  results.append({'documentKey': doc['key'], 'documentName': doc.get('name', ''), **r})
+                  new_results.append({'documentKey': doc['key'], 'documentName': doc.get('name', ''), **r})
+              if new_doc_keys:
+                  processed = {r['documentKey'] for r in new_results}
+                  final_results = [r for r in case.get('aiResults', []) if r.get('documentKey') not in processed] + new_results
+              else:
+                  final_results = new_results
               table.update_item(
                   Key={'appId': app_id},
                   UpdateExpression='SET aiResults = :ai, #st = :st, updatedAt = :ts',
                   ExpressionAttributeNames={'#st': 'status'},
-                  ExpressionAttributeValues={':ai': results, ':st': 'in_review', ':ts': datetime.now(timezone.utc).isoformat()},
+                  ExpressionAttributeValues={':ai': final_results, ':st': 'in_review', ':ts': datetime.now(timezone.utc).isoformat()},
               )
+              _log('lambda_complete', appId=app_id, resultsCount=len(final_results),
+                   documentTypes=[r.get('documentType') for r in final_results])
               return {'statusCode': 200, 'body': json.dumps({'appId': app_id, 'productType': product, 'expectedTypes': types, 'results': results})}
 
   # ─────────────────────────────────────────
@@ -264,26 +290,37 @@ Resources:
       Type: String
       Description: "Classification prompt for the document classifier Lambda. Placeholders: {product_type}, {expected_list}, {doc_count}"
       Value: |
-        You are a KYC document classifier and data extractor for Bank ABC.
+        You are a KYC document classifier, data extractor, and quality assessor for Bank ABC.
         The applicant is applying for: {product_type}.
         Expected document types for this product: {expected_list}.
 
         You are provided with {doc_count} document(s), supplied in order above this text.
         For each document:
         1. Classify it as exactly one of the expected types. If it does not clearly match any, use "Unclassified".
-        2. Extract the fields listed below for the identified document type. Use null for any field not found.
-        3. Assign an individual confidence score (0-100) for each extracted field.
+        2. Assess document quality using the checks defined below.
+        3. Extract the fields listed below for the identified document type. Use null for any field not found.
+        4. Assign a confidence score (0-100) for each extracted field.
+
+        Quality check guide (apply to every document):
+        - imageClarity: "pass" if text is sharp and readable, "warn" if slightly blurry but legible, "fail" if unreadable
+        - fullyVisible: "pass" if all edges and corners are visible, "warn" if slightly cropped, "fail" if significantly cut off
+        - notExpired: "pass" if expiry date is in the future, "fail" if expired, "na" if document has no expiry
+        - noTampering: "pass" if no signs of digital editing or inconsistency, "fail" if tampering suspected
+        - mrzValid: "pass" if MRZ zone is present and consistent, "fail" if MRZ is missing or inconsistent, "na" if not a passport or travel document
+        - faceVisible: (Selfie only) "pass" if the applicant's face is clearly visible and unobstructed, "warn" if partially obscured, "fail" if face not detected or fully obscured, "na" for all other document types
+        - livenessIndicator: (Selfie only) "pass" if the image appears to be a genuine live photo with natural lighting and background, "warn" if uncertain, "fail" if it appears to be a photo-of-photo or digitally manipulated, "na" for all other document types
 
         Field extraction guide by document type:
-        - Passport: fullName, passportNumber, nationality, dateOfBirth, gender, issueDate, expiryDate
+        - Passport: fullName, passportNumber, nationality, dateOfBirth, gender, issueDate, expiryDate, issuingCountry
         - National ID: fullName, idNumber, dateOfBirth, nationality, expiryDate, gender, address
-        - Utility Bill: customerName, address
-        - Bank Statement: accountHolderName, accountNumber, iban, bankName, statementStartDate, statementEndDate
-        - Salary Certificate: employeeName, employerName, employeeId, salaryAmount, netSalary
+        - Utility Bill: customerName, serviceAddress, billDate, accountNumber, utilityProvider
+        - Bank Statement: accountHolderName, accountNumber, iban, bankName, statementStartDate, statementEndDate, closingBalance
+        - Salary Certificate: employeeName, employerName, employeeId, monthlySalary, netSalary, issueDate, jobTitle
         - Trade License: companyName, tradeLicenseNumber, businessActivity, issueDate, expiryDate, licensingAuthority
-        - Certificate of Incorporation: companyName, registrationNumber, incorporationDate
-        - MOA: companyName, authorizedSignatories
-        - Power of Attorney: principalName, attorneyName, effectiveDate, expiryDate
+        - Certificate of Incorporation: companyName, registrationNumber, incorporationDate, country
+        - MOA: companyName, registrationNumber, authorizedSignatories, issueDate
+        - Power of Attorney: principalName, attorneyName, effectiveDate, expiryDate, scope
+        - Selfie: (no fields to extract — assessed via quality checks only)
 
         Return ONLY a valid JSON array — no markdown, no explanation.
         One element per document, in the same order as provided:
@@ -292,8 +329,17 @@ Resources:
             "documentType": "<one of the expected types, or Unclassified>",
             "confidenceScore": <integer 0-100>,
             "reasoning": "<one sentence>",
+            "qualityChecks": {
+              "imageClarity": "pass|warn|fail",
+              "fullyVisible": "pass|warn|fail",
+              "notExpired": "pass|fail|na",
+              "noTampering": "pass|fail",
+              "mrzValid": "pass|fail|na",
+              "faceVisible": "pass|warn|fail|na",
+              "livenessIndicator": "pass|warn|fail|na"
+            },
             "extractedFields": {
-              "<fieldName>": { "value": "<extracted value or null>", "confidence": <integer 0-100> }
+              "<fieldName>": { "value": "<extracted value or null>", "confidence": <integer 0-100>, "source": "ai" }
             }
           }
         ]
