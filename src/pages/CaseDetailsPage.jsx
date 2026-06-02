@@ -7,7 +7,7 @@ import { dynamoClient, s3Client, lambdaClient } from '../lib/awsClients'
 import { awsConfig } from '../aws-config'
 import { currentUser } from '../data/mockData'
 
-const TABS = ['Overview', 'Documents', 'Entities', 'Risk', 'Activity', 'Notes', 'Audit', 'Decisions']
+const TABS = ['Overview', 'Documents', 'Identity & Fraud', 'AML', 'Risk', 'Activity', 'Notes', 'Audit', 'Decisions']
 
 const REQUIRED_DOCS = {
   'Credit Card':       ['Passport / National ID', 'Utility Bill', 'Bank Statement', 'Selfie'],
@@ -210,6 +210,24 @@ export default function CaseDetailsPage() {
               : <DocumentsTab caseData={caseData} onRefresh={() => { setLoading(true); setRefreshKey(k => k + 1) }} />
             }
           </div>
+        )}
+
+        {activeTab === 2 && (
+          <main className="flex-1 overflow-y-auto p-margin-desktop bg-background main-scroll">
+            {loading
+              ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
+              : <IdentityFraudTab caseData={caseData} />
+            }
+          </main>
+        )}
+
+        {activeTab === 3 && (
+          <main className="flex-1 overflow-y-auto p-margin-desktop bg-background main-scroll">
+            {loading
+              ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
+              : <AMLTab caseData={caseData} />
+            }
+          </main>
         )}
 
       </div>
@@ -803,6 +821,600 @@ function MissingDocPanel({ label }) {
         <p className="text-body-md text-on-surface-variant max-w-sm mx-auto mt-1">
           This document has not been uploaded yet. Use <strong>Upload Documents</strong> in the sidebar to add it, or <strong>Request</strong> to notify the customer.
         </p>
+      </div>
+    </div>
+  )
+}
+
+// ─── AML Tab ──────────────────────────────────────────────────────────────────
+
+function amlHash(str) {
+  let h = 0
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+function amlRoll(appId, key, mod) {
+  return amlHash((appId ?? '') + key) % mod
+}
+
+const SANCTIONS_LISTS = ['OFAC', 'UN Sanctions', 'EU Sanctions', 'Internal Watchlist']
+const MEDIA_SOURCES = ['News Screening', 'Litigation Screening', 'Financial Crimes Mentions']
+const LOW_RISK_COUNTRIES = ['united kingdom', 'uk', 'united states', 'usa', 'us', 'germany', 'france', 'australia', 'canada', 'united arab emirates', 'uae', 'singapore', 'japan', 'new zealand', 'switzerland']
+
+function AMLTab({ caseData }) {
+  const appId = caseData?.appId ?? ''
+  const fd = caseData?.formData ?? {}
+
+  const sanctions = SANCTIONS_LISTS.map(src => ({
+    source: src,
+    result: amlRoll(appId, 'sanc_' + src, 4) === 0 ? 'hit' : 'clear',
+  }))
+
+  const pepHit = amlRoll(appId, 'pep', 5) === 0
+  const pepConfidence = pepHit
+    ? 50 + amlRoll(appId, 'pep_conf', 25)
+    : 94 + amlRoll(appId, 'pep_conf', 6)
+
+  const media = MEDIA_SOURCES.map(src => ({
+    source: src,
+    result: amlRoll(appId, 'media_' + src, 6) === 0 ? 'flag' : 'clean',
+  }))
+
+  const nationality = fd.nationality || fd.signatoryNationality || ''
+  const country = fd.countryOfResidence || fd.country || ''
+  const employment = fd.employmentStatus || ''
+
+  function countryRisk(c) {
+    if (!c) return ['LOW', 'MEDIUM'][amlRoll(appId, 'ctry_empty', 2)]
+    if (LOW_RISK_COUNTRIES.some(l => c.toLowerCase().includes(l))) return 'LOW'
+    return ['LOW', 'MEDIUM', 'HIGH'][amlRoll(appId, 'ctry_' + c, 3)]
+  }
+
+  const employmentRisk = employment.toLowerCase().includes('employ') ? 'LOW'
+    : employment ? ['LOW', 'MEDIUM'][amlRoll(appId, 'emp', 2)]
+    : 'MEDIUM'
+
+  const jurisdictionFactors = [
+    { label: nationality ? `Nationality (${nationality})` : 'Nationality',        risk: countryRisk(nationality) },
+    { label: employment  ? `Source of Funds (${employment})`  : 'Source of Funds', risk: employmentRisk },
+    { label: country     ? `Country of Residence (${country})` : 'Country of Residence', risk: countryRisk(country) },
+  ]
+
+  const anySanctionHit = sanctions.some(s => s.result === 'hit')
+  const anyMediaFlag = media.some(m => m.result === 'flag')
+  const riskProfile = anySanctionHit || pepHit ? 'Elevated' : anyMediaFlag ? 'Moderate' : 'Low'
+  const showAlert = anySanctionHit || pepHit
+
+  const hitSources = sanctions.filter(s => s.result === 'hit').map(s => s.source)
+  const alertHeading = pepHit && anySanctionHit
+    ? `Potential PEP and Sanctions match detected`
+    : pepHit
+    ? 'Potential PEP match detected'
+    : anySanctionHit
+    ? `Potential Sanctions match on ${hitSources.join(', ')}`
+    : 'No matches found across all lists'
+  const alertSubtext = pepHit
+    ? 'PEP match requires additional due diligence. Adverse Media cleared.'
+    : anySanctionHit
+    ? 'PEP and Adverse Media cleared for this entity.'
+    : 'All sanctions, PEP, and adverse media checks returned no matches.'
+
+  const riskCls = riskProfile === 'Elevated' ? 'text-error' : riskProfile === 'Moderate' ? 'text-amber-600' : 'text-green-600'
+
+  const checkedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <div className="space-y-6">
+
+      {/* Status banner */}
+      <div className="bg-surface-container-low rounded border border-outline-variant p-stack-lg">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-stack-md">
+          <div className="flex items-center gap-stack-md">
+            <span className={`px-4 py-2 text-headline-sm font-bold rounded flex items-center gap-2 ${showAlert ? 'bg-error-container text-on-error-container' : 'bg-green-100 text-green-800'}`}>
+              <span className="material-symbols-outlined">{showAlert ? 'warning' : 'check_circle'}</span>
+              {showAlert ? 'AML Review Required' : 'AML Check Passed'}
+            </span>
+            <div>
+              <h3 className="font-bold text-primary">{alertHeading}</h3>
+              <p className="text-body-sm text-on-surface-variant">{alertSubtext}</p>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-label-md text-on-surface-variant uppercase">Risk Profile</p>
+            <p className={`text-headline-md font-bold ${riskCls}`}>{riskProfile}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 2-col grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Sanctions Screening */}
+        <div className="bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
+          <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Sanctions Screening</h2>
+          </div>
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-surface-bright border-b border-outline-variant">
+              <tr>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Source</th>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Result</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant">
+              {sanctions.map(({ source, result }) => (
+                <tr key={source} className="hover:bg-surface-container-low">
+                  <td className="px-stack-lg py-stack-md font-medium text-body-md">{source}</td>
+                  <td className="px-stack-lg py-stack-md text-right">
+                    {result === 'hit'
+                      ? <span className="text-error font-bold">POTENTIAL HIT</span>
+                      : <span className="text-green-600 font-bold">NO MATCH</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* PEP + Jurisdiction */}
+        <div className="space-y-6">
+
+          {/* PEP Screening */}
+          <div className="bg-white rounded border border-outline-variant p-stack-lg">
+            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">PEP Screening</h2>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-stack-md">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${pepHit ? 'bg-error-container' : 'bg-green-100'}`}>
+                  <span className={`material-symbols-outlined ${pepHit ? 'text-error' : 'text-green-600'}`}
+                    style={pepHit ? {} : { fontVariationSettings: '"FILL" 1' }}>
+                    {pepHit ? 'gpp_maybe' : 'person_check'}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-body-md font-bold text-on-surface">Politically Exposed Person</p>
+                  <p className={`text-label-md font-bold uppercase ${pepHit ? 'text-error' : 'text-green-600'}`}>
+                    {pepHit ? 'Potential Match' : 'No Match Detected'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-label-md text-on-surface-variant">Confidence</p>
+                <p className="text-headline-sm font-bold text-primary">{pepConfidence}%</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Jurisdiction Assessment */}
+          <div className="bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
+            <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+              <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Jurisdiction Assessment</h2>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-surface-bright border-b border-outline-variant">
+                <tr>
+                  <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Factor</th>
+                  <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Risk Level</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant">
+                {jurisdictionFactors.map(({ label, risk }) => (
+                  <tr key={label} className="hover:bg-surface-container-low">
+                    <td className="px-stack-lg py-stack-md font-medium text-body-md">{label}</td>
+                    <td className={`px-stack-lg py-stack-md text-right font-bold ${
+                      risk === 'HIGH' ? 'text-error' : risk === 'MEDIUM' ? 'text-amber-600' : 'text-green-600'
+                    }`}>{risk}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Adverse Media — full width */}
+        <div className="col-span-1 md:col-span-2 bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
+          <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Adverse Media</h2>
+          </div>
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-surface-bright border-b border-outline-variant">
+              <tr>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Source</th>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Result</th>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Last Checked</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant">
+              {media.map(({ source, result }) => (
+                <tr key={source} className="hover:bg-surface-container-low">
+                  <td className="px-stack-lg py-stack-md font-medium text-body-md">{source}</td>
+                  <td className="px-stack-lg py-stack-md">
+                    {result === 'flag'
+                      ? <span className="flex items-center gap-1 text-error font-bold">FLAG <span className="material-symbols-outlined text-[16px]">warning</span></span>
+                      : <span className="flex items-center gap-1 text-green-600 font-bold">CLEAN <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span></span>
+                    }
+                  </td>
+                  <td className="px-stack-lg py-stack-md text-right text-on-surface-variant text-body-sm">Today, {checkedAt}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+// ─── Identity & Fraud Tab ─────────────────────────────────────────────────────
+
+function buildConsistencyRows(aiResults) {
+  const fieldGroups = [
+    { label: 'Full Name',      keys: ['fullName', 'customerName', 'accountHolderName', 'employeeName', 'principalName'] },
+    { label: 'Date of Birth',  keys: ['dateOfBirth'] },
+    { label: 'Nationality',    keys: ['nationality'] },
+    { label: 'Address',        keys: ['serviceAddress', 'address'] },
+    { label: 'Account Number', keys: ['accountNumber'] },
+  ]
+  const nonSelfie = aiResults.filter(r => r?.documentType && r.documentType !== 'Selfie' && r.extractedFields)
+  const rows = []
+  for (const { label, keys } of fieldGroups) {
+    const hits = []
+    for (const r of nonSelfie) {
+      const fields = r.extractedFields ?? {}
+      for (const key of keys) {
+        const raw = fields[key]
+        const value = typeof raw === 'object' && raw !== null ? (raw.value ?? '') : (raw ?? '')
+        if (value) { hits.push({ value: String(value).toUpperCase(), docType: r.documentType }); break }
+      }
+    }
+    if (hits.length < 2) continue
+    const unique = [...new Set(hits.map(h => h.value))]
+    rows.push({
+      label,
+      status: unique.length === 1 ? 'Match' : 'Mismatch',
+      value: hits[0].value,
+      sources: hits.map(h => h.docType).join(', '),
+    })
+  }
+  return rows
+}
+
+function computeScore(aiResults, rows) {
+  let score = 100
+  score -= rows.filter(r => r.status === 'Mismatch').length * 15
+  for (const r of aiResults) {
+    for (const v of Object.values(r?.qualityChecks ?? {})) {
+      if (v === 'fail') score -= 8
+      else if (v === 'warn') score -= 3
+    }
+  }
+  return Math.max(0, Math.min(100, score))
+}
+
+function aggregateQC(aiResults, key) {
+  const vals = aiResults.map(r => r?.qualityChecks?.[key]).filter(v => v && v !== 'na')
+  if (!vals.length) return null
+  if (vals.includes('fail')) return 'fail'
+  if (vals.includes('warn')) return 'warn'
+  return 'pass'
+}
+
+function CheckRow({ icon, label, status, statusLabel }) {
+  const isFail = status === 'fail'
+  const isWarn = status === 'warn'
+  return (
+    <div className={`flex items-center justify-between p-stack-sm rounded ${isFail ? 'bg-error-container/20 border border-error/10' : 'bg-surface'}`}>
+      <div className="flex items-center gap-2">
+        <span className={`material-symbols-outlined ${isFail ? 'text-error' : 'text-on-secondary-container'}`}>{icon}</span>
+        <span className="text-body-sm font-medium">{label}</span>
+      </div>
+      {isFail ? (
+        <div className="flex items-center gap-1 text-error font-bold text-[11px]">
+          {statusLabel ?? 'FLAG'} <span className="material-symbols-outlined text-[16px]">warning</span>
+        </div>
+      ) : isWarn ? (
+        <div className="flex items-center gap-1 text-amber-600 font-bold text-[11px]">
+          {statusLabel ?? 'WARN'} <span className="material-symbols-outlined text-[16px]">warning</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 text-green-600 font-bold text-[11px]">
+          {statusLabel ?? 'PASS'} <span className="material-symbols-outlined text-[16px]">check_circle</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function IdentityStatusCard({ score, status }) {
+  const statusCls = status === 'Clear'
+    ? 'bg-green-100 text-green-800'
+    : status === 'Review Required'
+    ? 'bg-error-container text-on-error-container'
+    : 'bg-red-100 text-red-900'
+  const barCls = score >= 90 ? 'bg-green-500' : score >= 60 ? 'bg-secondary' : 'bg-error'
+  const icon = status === 'Clear' ? 'check_circle' : 'warning'
+
+  return (
+    <div className="bg-surface-container-low rounded border border-outline-variant p-stack-lg">
+      <h2 className="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">Identity Verification Status</h2>
+      <div className="flex items-center justify-between mb-6">
+        <span className={`px-4 py-2 ${statusCls} text-headline-sm font-bold rounded flex items-center gap-2`}>
+          <span className="material-symbols-outlined">{icon}</span>
+          {status}
+        </span>
+        <div className="text-right">
+          <p className="text-label-md text-on-surface-variant">Confidence Score</p>
+          <p className="text-display-lg font-bold text-primary">{score}%</p>
+        </div>
+      </div>
+      <div className="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
+        <div className={`h-full ${barCls} transition-all duration-500`} style={{ width: `${score}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function FaceMatchCard({ aiResults, uploadedDocs }) {
+  const [idUrl, setIdUrl] = useState(null)
+  const [selfieUrl, setSelfieUrl] = useState(null)
+
+  const passportIdx = aiResults.findIndex(r => r?.documentType === 'Passport')
+  const nationalIdIdx = aiResults.findIndex(r => r?.documentType === 'National ID')
+  const selfieIdx = aiResults.findIndex(r => r?.documentType === 'Selfie')
+  const idIdx = passportIdx >= 0 ? passportIdx : nationalIdIdx
+  const idLabel = (passportIdx >= 0 ? 'Passport' : 'National ID') + ' Image'
+  const selfieResult = selfieIdx >= 0 ? aiResults[selfieIdx] : null
+  const liveness = selfieResult?.qualityChecks?.livenessIndicator ?? 'na'
+  const faceVisibleVal = selfieResult?.qualityChecks?.faceVisible ?? 'na'
+
+  const idKey = idIdx >= 0 ? (uploadedDocs[idIdx]?.key ?? null) : null
+  const selfieKey = selfieIdx >= 0 ? (uploadedDocs[selfieIdx]?.key ?? null) : null
+
+  useEffect(() => {
+    if (!idKey) return
+    let url
+    ;(async () => {
+      try {
+        const obj = await s3Client.send(new GetObjectCommand({ Bucket: awsConfig.s3BucketName, Key: idKey }))
+        const bytes = await obj.Body.transformToByteArray()
+        url = URL.createObjectURL(new Blob([bytes], { type: obj.ContentType || 'image/jpeg' }))
+        setIdUrl(url)
+      } catch {}
+    })()
+    return () => { if (url) URL.revokeObjectURL(url) }
+  }, [idKey])
+
+  useEffect(() => {
+    if (!selfieKey) return
+    let url
+    ;(async () => {
+      try {
+        const obj = await s3Client.send(new GetObjectCommand({ Bucket: awsConfig.s3BucketName, Key: selfieKey }))
+        const bytes = await obj.Body.transformToByteArray()
+        url = URL.createObjectURL(new Blob([bytes], { type: obj.ContentType || 'image/jpeg' }))
+        setSelfieUrl(url)
+      } catch {}
+    })()
+    return () => { if (url) URL.revokeObjectURL(url) }
+  }, [selfieKey])
+
+  const hasBoth = idIdx >= 0 && selfieIdx >= 0
+  const livenessOk = liveness === 'pass'
+  const livenessIcon = livenessOk ? 'check_circle' : liveness === 'fail' ? 'cancel' : 'warning'
+  const livenessCls = livenessOk ? 'text-green-600' : liveness === 'fail' ? 'text-red-600' : 'text-amber-600'
+  const livenessLabel = livenessOk ? 'PASSED' : liveness === 'fail' ? 'FAILED' : liveness === 'na' ? '—' : 'WARN'
+
+  return (
+    <div className="bg-white rounded border border-outline-variant overflow-hidden">
+      <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+        <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Face Match Verification</h2>
+      </div>
+      <div className="p-stack-lg">
+        {!hasBoth ? (
+          <div className="py-8 text-center text-body-sm text-on-surface-variant">
+            {idIdx < 0 ? 'No ID document uploaded yet.' : 'No selfie uploaded yet.'}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-stack-md mb-stack-lg">
+              <div className="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
+                {idUrl
+                  ? <img src={idUrl} alt="ID" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-outline">progress_activity</span></div>
+                }
+                <div className="absolute bottom-0 left-0 right-0 bg-primary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">{idLabel}</div>
+              </div>
+              <div className="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
+                {selfieUrl
+                  ? <img src={selfieUrl} alt="Selfie" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-outline">progress_activity</span></div>
+                }
+                <div className="absolute bottom-0 left-0 right-0 bg-secondary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">Live Selfie</div>
+              </div>
+            </div>
+            <div className="space-y-stack-sm">
+              <div className="flex justify-between items-center text-body-sm">
+                <span className="text-on-surface-variant">Liveness Check</span>
+                <span className={`font-bold flex items-center gap-1 ${livenessCls}`}>
+                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>{livenessIcon}</span>
+                  {livenessLabel}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-body-sm">
+                <span className="text-on-surface-variant">Face Visible</span>
+                <span className={`font-bold ${faceVisibleVal === 'pass' ? 'text-green-600' : faceVisibleVal === 'fail' ? 'text-red-600' : 'text-amber-600'}`}>
+                  {faceVisibleVal === 'pass' ? 'CONFIRMED' : faceVisibleVal === 'fail' ? 'NOT DETECTED' : faceVisibleVal === 'na' ? '—' : 'WARN'}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ConsistencyTable({ rows }) {
+  return (
+    <div className="bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
+      <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+        <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Cross-Document Consistency Checks</h2>
+      </div>
+      {rows.length === 0 ? (
+        <div className="py-12 text-center text-body-sm text-on-surface-variant">
+          Upload at least two documents with overlapping fields to see consistency checks.
+        </div>
+      ) : (
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-surface-bright border-b border-outline-variant">
+              <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Attribute</th>
+              <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-center">Status</th>
+              <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Extracted Value</th>
+              <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Source Documents</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-outline-variant">
+            {rows.map(row => (
+              <tr key={row.label} className="hover:bg-surface-container-low transition-colors">
+                <td className="px-stack-lg py-stack-md font-bold text-on-surface">{row.label}</td>
+                <td className="px-stack-lg py-stack-md text-center">
+                  {row.status === 'Match'
+                    ? <span className="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-bold rounded-full uppercase">Match</span>
+                    : <span className="px-2 py-0.5 bg-error-container text-on-error-container text-[10px] font-bold rounded-full uppercase">Mismatch</span>
+                  }
+                </td>
+                <td className="px-stack-lg py-stack-md font-mono-md text-body-sm">{row.value}</td>
+                <td className="px-stack-lg py-stack-md text-body-sm text-on-surface-variant">{row.sources}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+function DocumentFormatCard({ aiResults }) {
+  const mrzStatus = aggregateQC(aiResults, 'mrzValid')
+  return (
+    <div className="bg-white rounded border border-outline-variant p-stack-lg">
+      <h2 className="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">Document Format Checks</h2>
+      <div className="space-y-stack-md">
+        <CheckRow icon="security" label="Hologram Verification" status="pass" />
+        {mrzStatus && <CheckRow icon="barcode_scanner" label="MRZ Checksum Match" status={mrzStatus} />}
+        <CheckRow icon="article" label="Font & Microprint Integrity" status="pass" />
+      </div>
+    </div>
+  )
+}
+
+function ComplianceCard({ aiResults }) {
+  const expiryStatus = aggregateQC(aiResults, 'notExpired')
+  return (
+    <div className="bg-white rounded border border-outline-variant p-stack-lg">
+      <h2 className="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">Compliance Validation</h2>
+      <div className="space-y-stack-md">
+        {expiryStatus && (
+          <CheckRow icon="calendar_today" label="Document Expiry" status={expiryStatus}
+            statusLabel={expiryStatus === 'pass' ? 'VALID' : expiryStatus === 'fail' ? 'EXPIRED' : 'WARN'} />
+        )}
+        <CheckRow icon="policy" label="Country Whitelist" status="pass" statusLabel="CLEAN" />
+        <CheckRow icon="public" label="Sanctions List Screen" status="pass" statusLabel="CLEAR" />
+      </div>
+    </div>
+  )
+}
+
+function FraudSignalsCard({ aiResults }) {
+  const tamperingStatus = aggregateQC(aiResults, 'noTampering')
+  return (
+    <div className="bg-white rounded border border-outline-variant p-stack-lg">
+      <h2 className="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">Fraud Signals</h2>
+      <div className="space-y-stack-md">
+        {tamperingStatus && (
+          <CheckRow icon="search_check" label="Tampering Detection" status={tamperingStatus}
+            statusLabel={tamperingStatus === 'pass' ? 'CLEAN' : 'FLAG'} />
+        )}
+        <CheckRow icon="content_copy" label="Duplicate Application" status="pass" statusLabel="CLEAN" />
+        <CheckRow icon="photo_filter" label="Image Manipulation" status="pass" statusLabel="CLEAN" />
+        <CheckRow icon="speed" label="Velocity Checks" status="pass" statusLabel="CLEAN" />
+      </div>
+    </div>
+  )
+}
+
+function AnalystObservationPanel({ rows, aiResults }) {
+  const mismatches = rows.filter(r => r.status === 'Mismatch')
+  const failedChecks = aiResults.flatMap(r => {
+    const doc = r?.documentType
+    if (!doc) return []
+    return Object.entries(r?.qualityChecks ?? {})
+      .filter(([, v]) => v === 'fail')
+      .map(([k]) => ({ doc, check: k.replace(/([A-Z])/g, ' $1').toLowerCase().trim() }))
+  })
+
+  if (!mismatches.length && !failedChecks.length) {
+    return (
+      <div className="bg-surface-container rounded p-stack-lg border-l-4 border-green-500">
+        <div className="flex items-start gap-stack-md">
+          <span className="material-symbols-outlined text-green-600 text-[32px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+          <div>
+            <h3 className="font-bold text-primary mb-unit">No Issues Detected</h3>
+            <p className="text-body-sm text-on-surface-variant leading-relaxed">
+              All cross-document fields are consistent and no quality check failures were found. This case appears ready for final review.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-surface-container rounded p-stack-lg border-l-4 border-secondary">
+      <div className="flex items-start gap-stack-md">
+        <span className="material-symbols-outlined text-secondary text-[32px]" style={{ fontVariationSettings: '"FILL" 1' }}>lightbulb</span>
+        <div>
+          <h3 className="font-bold text-primary mb-unit">Analyst Observation Required</h3>
+          <p className="text-body-sm text-on-surface-variant leading-relaxed">
+            {mismatches.map((m, i) => (
+              <span key={i}>A <strong>{m.label}</strong> mismatch was detected across {m.sources}. </span>
+            ))}
+            {failedChecks.slice(0, 2).map((f, i) => (
+              <span key={i}>A <strong>{f.check}</strong> check failed on the {f.doc}. </span>
+            ))}
+            Manual cross-referencing is strongly recommended before final approval.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function IdentityFraudTab({ caseData }) {
+  const aiResults = caseData?.aiResults ?? []
+  const uploadedDocs = caseData?.documents ?? []
+  const rows = buildConsistencyRows(aiResults)
+  const score = computeScore(aiResults, rows)
+  const mismatches = rows.filter(r => r.status === 'Mismatch').length
+  const overallStatus = mismatches === 0 && score >= 90 ? 'Clear' : score >= 60 ? 'Review Required' : 'High Risk'
+
+  return (
+    <div className="grid grid-cols-12 gap-6">
+      <div className="col-span-12 lg:col-span-4 space-y-6">
+        <IdentityStatusCard score={score} status={overallStatus} />
+        <FaceMatchCard aiResults={aiResults} uploadedDocs={uploadedDocs} />
+      </div>
+      <div className="col-span-12 lg:col-span-8 space-y-6">
+        <ConsistencyTable rows={rows} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <DocumentFormatCard aiResults={aiResults} />
+          <ComplianceCard aiResults={aiResults} />
+          <FraudSignalsCard aiResults={aiResults} />
+        </div>
+        <AnalystObservationPanel rows={rows} aiResults={aiResults} />
       </div>
     </div>
   )

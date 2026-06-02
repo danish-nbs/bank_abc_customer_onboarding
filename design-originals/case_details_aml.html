@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bank ABC Onboarding Platform | Identity Verification</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed-variant": "#114783",
+                        "on-surface": "#0b1c30",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#44474e",
+                        "tertiary-fixed": "#d9e3f2",
+                        "inverse-surface": "#213145",
+                        "on-tertiary-container": "#7f8997",
+                        "outline": "#74777f",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "surface-container": "#e5eeff",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#465f88",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#001b3d",
+                        "secondary-container": "#90bafd",
+                        "primary": "#000a1e",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-secondary-fixed": "#001b3c",
+                        "surface-container-low": "#eff4ff",
+                        "surface-variant": "#d3e4fe",
+                        "tertiary-container": "#18222d",
+                        "secondary": "#325f9c",
+                        "on-tertiary-fixed-variant": "#3e4853",
+                        "surface": "#f8f9ff",
+                        "surface-container-high": "#dce9ff",
+                        "surface-bright": "#f8f9ff",
+                        "outline-variant": "#c4c6cf",
+                        "on-background": "#0b1c30",
+                        "background": "#f8f9ff",
+                        "secondary-fixed": "#d5e3ff",
+                        "primary-fixed": "#d6e3ff",
+                        "primary-container": "#002147",
+                        "on-primary-container": "#708ab5",
+                        "tertiary-fixed-dim": "#bdc7d6",
+                        "on-tertiary-fixed": "#131c27",
+                        "secondary-fixed-dim": "#a7c8ff",
+                        "on-primary": "#ffffff",
+                        "surface-dim": "#cbdbf5",
+                        "inverse-on-surface": "#eaf1ff",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#030b15",
+                        "primary-fixed-dim": "#aec7f6",
+                        "on-error": "#ffffff",
+                        "on-secondary-container": "#154985",
+                        "inverse-primary": "#aec7f6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "gutter": "24px",
+                        "unit": "4px",
+                        "stack-md": "16px",
+                        "stack-lg": "24px",
+                        "margin-desktop": "32px",
+                        "margin-mobile": "16px",
+                        "container-max": "1440px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "mono-md": ["JetBrains Mono"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "mono-md": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md overflow-hidden">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-stack-lg px-unit bg-surface-container-low border-r border-outline-variant w-64 z-50">
+<div class="px-stack-md mb-stack-lg">
+<span class="text-headline-sm font-headline-md text-primary">Case Manager</span>
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Onboarding Team</p>
+</div>
+<nav class="flex-1 space-y-unit px-stack-sm">
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md bg-secondary-container text-on-secondary-container rounded-lg font-bold cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">folder_shared</span>
+<span class="font-label-md text-label-md">Cases</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Clients</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</div>
+</nav>
+<div class="mt-auto px-stack-sm space-y-unit">
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">contact_support</span>
+<span class="font-label-md text-label-md">Support</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md border-t border-outline-variant pt-stack-md">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-[10px] font-bold">JD</div>
+<div class="flex-1 min-w-0">
+<p class="text-label-md font-bold truncate">John Doe</p>
+<p class="text-[10px] text-on-surface-variant truncate">Analyst Profile</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">logout</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="pl-64 flex flex-col h-screen">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-margin-desktop py-unit z-40 bg-surface border-b border-outline-variant min-h-[64px]">
+<div class="text-headline-sm font-headline-md text-primary">Bank ABC Onboarding Platform</div>
+<div class="flex items-center gap-gutter">
+<div class="relative hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full w-80 text-body-md focus:ring-2 focus:ring-secondary" placeholder="Search cases, entities, documents..." type="text"/>
+</div>
+<div class="flex items-center gap-stack-md">
+<button class="material-symbols-outlined text-primary hover:bg-surface-container-high p-2 rounded-full transition-colors cursor-pointer active:opacity-80">notifications</button>
+<button class="material-symbols-outlined text-primary hover:bg-surface-container-high p-2 rounded-full transition-colors cursor-pointer active:opacity-80">help</button>
+</div>
+</div>
+</header>
+<!-- Page Content Scrollable -->
+<div class="flex-1 overflow-y-auto custom-scrollbar bg-surface px-margin-desktop py-stack-lg">
+<!-- Case Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-stack-md mb-stack-lg">
+<div>
+<div class="flex items-center gap-stack-sm mb-unit">
+<span class="text-label-md font-label-md text-on-surface-variant">CASE ID:</span>
+<span class="font-mono-md text-mono-md bg-surface-container-high px-2 py-0.5 rounded">APP-882194-Z</span>
+<span class="px-3 py-1 bg-secondary-container text-on-secondary-container text-[11px] font-bold rounded-full uppercase tracking-widest flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-on-secondary-container animate-pulse"></span>
+                            In Review
+                        </span>
+</div>
+<h1 class="font-display-lg text-display-lg text-primary">Identity and Fraud Verification</h1>
+</div>
+<div class="flex flex-wrap gap-stack-sm">
+<button class="px-stack-md h-[36px] border border-outline text-on-surface font-label-md rounded flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">priority_high</span> Escalate
+                    </button>
+<button class="px-stack-md h-[36px] border border-outline text-on-surface font-label-md rounded flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">contact_mail</span> Request Docs
+                    </button>
+<button class="px-stack-md h-[36px] border border-error text-error font-label-md rounded flex items-center gap-2 hover:bg-error-container transition-colors">
+<span class="material-symbols-outlined text-[18px]">cancel</span> Reject
+                    </button>
+<button class="px-stack-md h-[36px] bg-primary text-on-primary font-label-md rounded flex items-center gap-2 hover:opacity-90 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check_circle</span> Approve Case
+                    </button>
+</div>
+</div>
+<!-- Tab Navigation -->
+<div class="flex gap-gutter border-b border-outline-variant mb-stack-lg">
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Overview</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Documents</button>
+<button class="pb-stack-md border-b-2 text-on-surface-variant border-transparent">Identity and Fraud Verification</button>
+<button class="pb-stack-md font-medium hover:text-primary transition-colors border-b-2 text-primary font-bold border-primary">AML</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Activity</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Notes</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Audit</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Decisions</button>
+</div>
+<!-- Grid Layout -->
+<div class="grid grid-cols-12 gap-gutter"><div class="col-span-12 space-y-gutter"><div class="bg-surface-container-low rounded p-stack-lg border border-outline-variant"><div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-stack-md"><div class="flex items-center gap-stack-md"><span class="px-4 py-2 bg-error-container text-on-error-container text-headline-sm font-bold rounded flex items-center gap-2"><span class="material-symbols-outlined">warning</span> AML Review Required</span><div><h3 class="font-bold text-primary">Potential Sanctions match detected</h3><p class="text-body-sm text-on-surface-variant">PEP and Adverse Media cleared for this entity.</p></div></div><div class="text-right"><p class="text-label-md text-on-surface-variant uppercase">Risk Profile</p><p class="text-headline-md font-bold text-error">Elevated</p></div></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-gutter"><div class="bg-white rounded border border-outline-variant overflow-hidden shadow-sm"><div class="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant"><h2 class="text-label-md font-label-md text-on-surface-variant uppercase">Sanctions Screening</h2></div><table class="w-full text-left border-collapse"><thead class="bg-surface-bright border-b border-outline-variant"><tr class="text-label-md font-label-md text-on-surface-variant uppercase"><th class="px-stack-lg py-stack-md">Source</th><th class="px-stack-lg py-stack-md text-right">Result</th></tr></thead><tbody class="divide-y divide-outline-variant"><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">OFAC</td><td class="px-stack-lg py-stack-md text-right"><span class="text-error font-bold">POTENTIAL HIT</span></td></tr><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">UN Sanctions</td><td class="px-stack-lg py-stack-md text-right text-green-600 font-bold">NO MATCH</td></tr><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">EU Sanctions</td><td class="px-stack-lg py-stack-md text-right text-green-600 font-bold">NO MATCH</td></tr><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">Internal Watchlist</td><td class="px-stack-lg py-stack-md text-right text-green-600 font-bold">NO MATCH</td></tr></tbody></table></div><div class="space-y-gutter"><div class="bg-white rounded border border-outline-variant p-stack-lg"><h2 class="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">PEP Screening</h2><div class="flex items-center justify-between"><div class="flex items-center gap-stack-md"><div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center"><span class="material-symbols-outlined text-green-600">person_check</span></div><div><p class="text-body-md font-bold text-on-surface">Politically Exposed Person</p><p class="text-label-md text-green-600 font-bold uppercase">No Match Detected</p></div></div><div class="text-right"><p class="text-label-md text-on-surface-variant">Confidence</p><p class="text-headline-sm font-bold text-primary">99%</p></div></div></div><div class="bg-white rounded border border-outline-variant overflow-hidden shadow-sm"><div class="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant"><h2 class="text-label-md font-label-md text-on-surface-variant uppercase">Jurisdiction Assessment</h2></div><table class="w-full text-left border-collapse"><thead class="bg-surface-bright border-b border-outline-variant"><tr class="text-label-md font-label-md text-on-surface-variant uppercase"><th class="px-stack-lg py-stack-md">Factor</th><th class="px-stack-lg py-stack-md text-right">Risk Level</th></tr></thead><tbody class="divide-y divide-outline-variant"><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">Nationality (British)</td><td class="px-stack-lg py-stack-md text-right text-green-600 font-bold">LOW</td></tr><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">Source of Funds (Salary)</td><td class="px-stack-lg py-stack-md text-right text-green-600 font-bold">LOW</td></tr><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">Country of residence (UK)</td><td class="px-stack-lg py-stack-md text-right text-green-600 font-bold">LOW</td></tr></tbody></table></div></div><div class="col-span-1 md:col-span-2 bg-white rounded border border-outline-variant overflow-hidden shadow-sm"><div class="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant"><h2 class="text-label-md font-label-md text-on-surface-variant uppercase">Adverse Media</h2></div><table class="w-full text-left border-collapse"><thead class="bg-surface-bright border-b border-outline-variant"><tr class="text-label-md font-label-md text-on-surface-variant uppercase"><th class="px-stack-lg py-stack-md">Source</th><th class="px-stack-lg py-stack-md">Result</th><th class="px-stack-lg py-stack-md text-right">Last Checked</th></tr></thead><tbody class="divide-y divide-outline-variant"><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">News Screening</td><td class="px-stack-lg py-stack-md"><span class="flex items-center gap-1 text-green-600 font-bold">CLEAN <span class="material-symbols-outlined text-[16px]">check_circle</span></span></td><td class="px-stack-lg py-stack-md text-right text-on-surface-variant text-body-sm">2 hours ago</td></tr><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">Litigation Screening</td><td class="px-stack-lg py-stack-md"><span class="flex items-center gap-1 text-green-600 font-bold">CLEAN <span class="material-symbols-outlined text-[16px]">check_circle</span></span></td><td class="px-stack-lg py-stack-md text-right text-on-surface-variant text-body-sm">2 hours ago</td></tr><tr class="hover:bg-surface-container-low"><td class="px-stack-lg py-stack-md font-medium text-body-md">Financial Crimes Mentions</td><td class="px-stack-lg py-stack-md"><span class="flex items-center gap-1 text-green-600 font-bold">CLEAN <span class="material-symbols-outlined text-[16px]">check_circle</span></span></td><td class="px-stack-lg py-stack-md text-right text-on-surface-variant text-body-sm">2 hours ago</td></tr></tbody></table></div></div></div></div>
+</div>
+</main>
+<script>
+        // Simple micro-interaction for active states
+        document.querySelectorAll('nav div').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('nav div').forEach(i => {
+                    i.classList.remove('bg-secondary-container', 'text-on-secondary-container', 'font-bold');
+                    i.classList.add('text-on-surface-variant', 'hover:text-on-surface');
+                    const icon = i.querySelector('.material-symbols-outlined');
+                    if(icon) icon.style.fontVariationSettings = "'FILL' 0";
+                });
+                this.classList.add('bg-secondary-container', 'text-on-secondary-container', 'font-bold');
+                this.classList.remove('text-on-surface-variant', 'hover:text-on-surface');
+                const activeIcon = this.querySelector('.material-symbols-outlined');
+                if(activeIcon) activeIcon.style.fontVariationSettings = "'FILL' 1";
+            });
+        });
+    </script>
+</body></html>

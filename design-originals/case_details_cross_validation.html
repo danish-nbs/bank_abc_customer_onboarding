@@ -1,0 +1,463 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Bank ABC Onboarding Platform | Identity Verification</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed-variant": "#114783",
+                        "on-surface": "#0b1c30",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#44474e",
+                        "tertiary-fixed": "#d9e3f2",
+                        "inverse-surface": "#213145",
+                        "on-tertiary-container": "#7f8997",
+                        "outline": "#74777f",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "surface-container": "#e5eeff",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#465f88",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#001b3d",
+                        "secondary-container": "#90bafd",
+                        "primary": "#000a1e",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-secondary-fixed": "#001b3c",
+                        "surface-container-low": "#eff4ff",
+                        "surface-variant": "#d3e4fe",
+                        "tertiary-container": "#18222d",
+                        "secondary": "#325f9c",
+                        "on-tertiary-fixed-variant": "#3e4853",
+                        "surface": "#f8f9ff",
+                        "surface-container-high": "#dce9ff",
+                        "surface-bright": "#f8f9ff",
+                        "outline-variant": "#c4c6cf",
+                        "on-background": "#0b1c30",
+                        "background": "#f8f9ff",
+                        "secondary-fixed": "#d5e3ff",
+                        "primary-fixed": "#d6e3ff",
+                        "primary-container": "#002147",
+                        "on-primary-container": "#708ab5",
+                        "tertiary-fixed-dim": "#bdc7d6",
+                        "on-tertiary-fixed": "#131c27",
+                        "secondary-fixed-dim": "#a7c8ff",
+                        "on-primary": "#ffffff",
+                        "surface-dim": "#cbdbf5",
+                        "inverse-on-surface": "#eaf1ff",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#030b15",
+                        "primary-fixed-dim": "#aec7f6",
+                        "on-error": "#ffffff",
+                        "on-secondary-container": "#154985",
+                        "inverse-primary": "#aec7f6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "gutter": "24px",
+                        "unit": "4px",
+                        "stack-md": "16px",
+                        "stack-lg": "24px",
+                        "margin-desktop": "32px",
+                        "margin-mobile": "16px",
+                        "container-max": "1440px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "mono-md": ["JetBrains Mono"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "mono-md": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md overflow-hidden">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-stack-lg px-unit bg-surface-container-low border-r border-outline-variant w-64 z-50">
+<div class="px-stack-md mb-stack-lg">
+<span class="text-headline-sm font-headline-md text-primary">Case Manager</span>
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Onboarding Team</p>
+</div>
+<nav class="flex-1 space-y-unit px-stack-sm">
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md bg-secondary-container text-on-secondary-container rounded-lg font-bold cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">folder_shared</span>
+<span class="font-label-md text-label-md">Cases</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Clients</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</div>
+</nav>
+<div class="mt-auto px-stack-sm space-y-unit">
+<div class="flex items-center gap-stack-sm p-stack-md hover:bg-surface-container-highest transition-all active:scale-95 duration-150 cursor-pointer text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined">contact_support</span>
+<span class="font-label-md text-label-md">Support</span>
+</div>
+<div class="flex items-center gap-stack-sm p-stack-md border-t border-outline-variant pt-stack-md">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-[10px] font-bold">JD</div>
+<div class="flex-1 min-w-0">
+<p class="text-label-md font-bold truncate">John Doe</p>
+<p class="text-[10px] text-on-surface-variant truncate">Analyst Profile</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">logout</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="pl-64 flex flex-col h-screen">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-margin-desktop py-unit z-40 bg-surface border-b border-outline-variant min-h-[64px]">
+<div class="text-headline-sm font-headline-md text-primary">Bank ABC Onboarding Platform</div>
+<div class="flex items-center gap-gutter">
+<div class="relative hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full w-80 text-body-md focus:ring-2 focus:ring-secondary" placeholder="Search cases, entities, documents..." type="text">
+</div>
+<div class="flex items-center gap-stack-md">
+<button class="material-symbols-outlined text-primary hover:bg-surface-container-high p-2 rounded-full transition-colors cursor-pointer active:opacity-80">notifications</button>
+<button class="material-symbols-outlined text-primary hover:bg-surface-container-high p-2 rounded-full transition-colors cursor-pointer active:opacity-80">help</button>
+</div>
+</div>
+</header>
+<!-- Page Content Scrollable -->
+<div class="flex-1 overflow-y-auto custom-scrollbar bg-surface px-margin-desktop py-stack-lg">
+<!-- Case Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-stack-md mb-stack-lg">
+<div>
+<div class="flex items-center gap-stack-sm mb-unit">
+<span class="text-label-md font-label-md text-on-surface-variant">CASE ID:</span>
+<span class="font-mono-md text-mono-md bg-surface-container-high px-2 py-0.5 rounded">APP-882194-Z</span>
+<span class="px-3 py-1 bg-secondary-container text-on-secondary-container text-[11px] font-bold rounded-full uppercase tracking-widest flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-on-secondary-container animate-pulse"></span>
+                            In Review
+                        </span>
+</div>
+<h1 class="font-display-lg text-display-lg text-primary">Identity and Fraud Verification</h1>
+</div>
+<div class="flex flex-wrap gap-stack-sm">
+<button class="px-stack-md h-[36px] border border-outline text-on-surface font-label-md rounded flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">priority_high</span> Escalate
+                    </button>
+<button class="px-stack-md h-[36px] border border-outline text-on-surface font-label-md rounded flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">contact_mail</span> Request Docs
+                    </button>
+<button class="px-stack-md h-[36px] border border-error text-error font-label-md rounded flex items-center gap-2 hover:bg-error-container transition-colors">
+<span class="material-symbols-outlined text-[18px]">cancel</span> Reject
+                    </button>
+<button class="px-stack-md h-[36px] bg-primary text-on-primary font-label-md rounded flex items-center gap-2 hover:opacity-90 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check_circle</span> Approve Case
+                    </button>
+</div>
+</div>
+<!-- Tab Navigation -->
+<div class="flex gap-gutter border-b border-outline-variant mb-stack-lg">
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Overview</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Documents</button>
+<button class="pb-stack-md text-primary font-bold border-b-2 border-primary">Identity and Fraud Verification</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Risk</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Activity</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Notes</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Audit</button>
+<button class="pb-stack-md text-on-surface-variant font-medium hover:text-primary transition-colors border-b-2 border-transparent">Decisions</button>
+</div>
+<!-- Grid Layout -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Left Column: Summary & Face Match -->
+<div class="col-span-12 lg:col-span-4 space-y-gutter">
+<!-- Identity Verification Status -->
+<div class="bg-surface-container-low rounded p-stack-lg border border-outline-variant">
+<h2 class="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">Identity Verification Status</h2>
+<div class="flex items-center justify-between mb-gutter">
+<span class="px-4 py-2 bg-error-container text-on-error-container text-headline-sm font-bold rounded flex items-center gap-2">
+<span class="material-symbols-outlined">warning</span> Review Required
+                            </span>
+<div class="text-right">
+<p class="text-label-md text-on-surface-variant">Confidence Score</p>
+<p class="text-display-lg font-bold text-primary">88%</p>
+</div>
+</div>
+<div class="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 88%"></div>
+</div>
+</div>
+<!-- Face Match Verification -->
+<div class="bg-white rounded border border-outline-variant overflow-hidden">
+<div class="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant flex justify-between items-center">
+<h2 class="text-label-md font-label-md text-on-surface-variant uppercase">Face Match Verification</h2>
+<span class="text-label-md font-bold text-on-secondary-container">94% Match</span>
+</div>
+<div class="p-stack-lg">
+<div class="grid grid-cols-2 gap-stack-md mb-stack-lg">
+<div class="space-y-unit">
+<div class="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
+<img alt="Passport Photo" class="w-full h-full object-cover grayscale" data-alt="A professional, high-resolution passport-style identification photograph of a woman with a neutral expression. The image is captured in a formal setting with soft, flat lighting and a plain, light grey background. The visual style is crisp and clean, reflecting a high-security corporate banking aesthetic with sharp details on facial features for biometrics." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVWrATc7aZoAfQ2vG7BY1wRbvMLqgasc7N8e1loHoFsbsYaqLCgvDU3XTGGDCoQdXM-yalzbZFHg5T9lxjiqE_fIs5ZO_JLp8y6bRATZHmSgDMdzFGY0u7kKsHIzzu0f2-yoylOcFU3EYDWL9NvtGzlNtaRKleetxKr57TT6PRW4qXNfEQjiA91icIaCjmdo3ObS9vkx8FizPMYnwqou6ueE7VffJ6zpdGrafupGFgijG7YLbm-I1emynpaRWK3Wk9wk_M81ouWPk">
+<div class="absolute bottom-0 left-0 right-0 bg-primary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">Passport Image</div>
+</div>
+</div>
+<div class="space-y-unit">
+<div class="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
+<img alt="Selfie Photo" class="w-full h-full object-cover" data-alt="A high-fidelity mobile-captured selfie of the same woman under natural, slightly uneven lighting in a modern interior environment. The composition is a close-up facial shot intended for identity verification. The image has a clean, bright, and secure feel, maintaining the corporate modern aesthetic of a financial technology platform with high visual clarity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCK3NpVQnKA8RPCK0RR1x0SrO_h4y6XEBSNJvbPy6ITe4jFFmfzF0umgXFAjqTQvvTT15yPLjUy0uLCIYulMpZnL8q1kQO0eEcv0TdJDriVvEeeYJAQry85teph4LVWxcb0UsJhFOncslM8Jvz7M3wXNIWoGDhw2P0ZpJbyBkwqyE6sZ0eK7qV5ItFXRUrufmezovxi9D2QBuTENmstYN6eYL-q40Sk7W77hwzA7D-GHUVDs_yIS-jcYentXa0kgUpmwzzCmHmY8qQ">
+<div class="absolute bottom-0 left-0 right-0 bg-secondary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">Live Selfie</div>
+</div>
+</div>
+</div>
+<div class="space-y-stack-sm">
+<div class="flex justify-between items-center text-body-sm">
+<span class="text-on-surface-variant">Liveness Check</span>
+<span class="font-bold text-on-secondary-container flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">check_circle</span> PASSED
+                                    </span>
+</div>
+<div class="flex justify-between items-center text-body-sm">
+<span class="text-on-surface-variant">Biometric Anchors</span>
+<span class="font-bold text-on-secondary-container">12/12 Points</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Tables & Details -->
+<div class="col-span-12 lg:col-span-8 space-y-gutter">
+<!-- Cross-Document Consistency Checks -->
+<div class="bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
+<div class="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+<h2 class="text-label-md font-label-md text-on-surface-variant uppercase">Cross-Document Consistency Checks</h2>
+</div>
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-bright border-b border-outline-variant">
+<th class="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Attribute</th>
+<th class="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-center">Status</th>
+<th class="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Extracted Value</th>
+<th class="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Source Documents</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-stack-lg py-stack-md font-bold text-on-surface">Full Name</td>
+<td class="px-stack-lg py-stack-md text-center">
+<span class="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-bold rounded-full uppercase">Match</span>
+</td>
+<td class="px-stack-lg py-stack-md font-mono-md text-body-sm">ELIZABETH J. WINDSOR</td>
+<td class="px-stack-lg py-stack-md text-body-sm text-on-surface-variant">Passport, Utility Bill</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-stack-lg py-stack-md font-bold text-on-surface">Address</td>
+<td class="px-stack-lg py-stack-md text-center">
+<span class="px-2 py-0.5 bg-error-container text-on-error-container text-[10px] font-bold rounded-full uppercase">Mismatch</span>
+</td>
+<td class="px-stack-lg py-stack-md font-mono-md text-body-sm">221B BAKER STREET, LONDON</td>
+<td class="px-stack-lg py-stack-md text-body-sm text-on-surface-variant">Passport vs DL</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-stack-lg py-stack-md font-bold text-on-surface">Date of Birth</td>
+<td class="px-stack-lg py-stack-md text-center">
+<span class="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-bold rounded-full uppercase">Match</span>
+</td>
+<td class="px-stack-lg py-stack-md font-mono-md text-body-sm">1988-04-21</td>
+<td class="px-stack-lg py-stack-md text-body-sm text-on-surface-variant">Passport, Birth Cert</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-stack-lg py-stack-md font-bold text-on-surface">Nationality</td>
+<td class="px-stack-lg py-stack-md text-center">
+<span class="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-bold rounded-full uppercase">Match</span>
+</td>
+<td class="px-stack-lg py-stack-md font-mono-md text-body-sm">BRITISH</td>
+<td class="px-stack-lg py-stack-md text-body-sm text-on-surface-variant">Passport</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Document Authenticity Validation -->
+<div class="grid grid-cols-1 gap-gutter lg:grid-cols-3">
+<div class="bg-white rounded border border-outline-variant p-stack-lg">
+<h2 class="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">Document Format Checks</h2>
+<div class="space-y-stack-md">
+<div class="flex items-center justify-between p-stack-sm bg-surface rounded">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-secondary-container">security</span>
+<span class="text-body-sm font-medium">Hologram Verification</span>
+</div>
+<span class="material-symbols-outlined text-green-600">check_circle</span>
+</div>
+<div class="flex items-center justify-between p-stack-sm bg-surface rounded">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-secondary-container">barcode_scanner</span>
+<span class="text-body-sm font-medium">MRZ Checksum Match</span>
+</div>
+<span class="material-symbols-outlined text-green-600">check_circle</span>
+</div>
+<div class="flex items-center justify-between p-stack-sm bg-surface rounded">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-secondary-container">photo_prints</span>
+<span class="text-body-sm font-medium">Font &amp; Microprint Integrity</span>
+</div>
+<span class="material-symbols-outlined text-green-600">check_circle</span>
+</div>
+</div>
+</div>
+<div class="bg-white rounded border border-outline-variant p-stack-lg">
+<h2 class="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">Compliance Validation</h2>
+<div class="space-y-stack-md">
+<div class="flex items-center justify-between p-stack-sm bg-surface rounded">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-secondary-container">calendar_today</span>
+<span class="text-body-sm font-medium">Document Expiry Date</span>
+</div>
+<div class="flex items-center gap-1 text-green-600 font-bold text-[11px]">
+                                        VALID <span class="material-symbols-outlined text-[16px]">check_circle</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-stack-sm bg-surface rounded">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-secondary-container">policy</span>
+<span class="text-body-sm font-medium">Issue Country List (Whitelist)</span>
+</div>
+<div class="flex items-center gap-1 text-green-600 font-bold text-[11px]">
+                                        CLEAN <span class="material-symbols-outlined text-[16px]">check_circle</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-stack-sm bg-error-container/20 rounded border border-error/10">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-error">public</span>
+<span class="text-body-sm font-medium">Sanctions List Screen</span>
+</div>
+<div class="flex items-center gap-1 text-error font-bold text-[11px]">
+                                        POTENTIAL HIT <span class="material-symbols-outlined text-[16px]">warning</span>
+</div>
+</div>
+</div>
+</div><div class="bg-white rounded border border-outline-variant p-stack-lg">
+<h2 class="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">Fraud Signals</h2>
+<div class="space-y-stack-md">
+<div class="flex items-center justify-between p-stack-sm bg-surface rounded">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-secondary-container">search_check</span>
+<span class="text-body-sm font-medium">Tampering detection</span>
+</div>
+<div class="flex items-center gap-1 text-green-600 font-bold text-[11px]">
+CLEAN <span class="material-symbols-outlined text-[16px]">check_circle</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-stack-sm bg-error-container/20 rounded border border-error/10">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-error">content_copy</span>
+<span class="text-body-sm font-medium">Duplicate application detection</span>
+</div>
+<div class="flex items-center gap-1 text-error font-bold text-[11px]">
+FLAG <span class="material-symbols-outlined text-[16px]">warning</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-stack-sm bg-surface rounded">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-secondary-container">photo_filter</span>
+<span class="text-body-sm font-medium">Image manipulation</span>
+</div>
+<div class="flex items-center gap-1 text-green-600 font-bold text-[11px]">
+CLEAN <span class="material-symbols-outlined text-[16px]">check_circle</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-stack-sm bg-surface rounded">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-secondary-container">speed</span>
+<span class="text-body-sm font-medium">Velocity checks</span>
+</div>
+<div class="flex items-center gap-1 text-green-600 font-bold text-[11px]">
+CLEAN <span class="material-symbols-outlined text-[16px]">check_circle</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Insights / Observations Panel -->
+<div class="bg-surface-container rounded p-stack-lg border-l-4 border-secondary">
+<div class="flex items-start gap-stack-md">
+<span class="material-symbols-outlined text-secondary text-[32px]" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
+<div>
+<h3 class="font-bold text-primary mb-unit">Analyst Observation Required</h3>
+<p class="text-body-sm text-on-surface-variant leading-relaxed">
+                                    System detected a mismatch between the primary residence address on the <span class="font-bold">Utility Bill (Dec 2023)</span> and the <span class="font-bold">Passport (Issued 2019)</span>. Additionally, a potential name match was found on the <span class="font-bold">UK Sanctions List</span> for 'Elizabeth Windsor'. Manual cross-referencing with Date of Birth and Middle Name is strongly recommended before final approval.
+                                </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Simple micro-interaction for active states
+        document.querySelectorAll('nav div').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('nav div').forEach(i => {
+                    i.classList.remove('bg-secondary-container', 'text-on-secondary-container', 'font-bold');
+                    i.classList.add('text-on-surface-variant', 'hover:text-on-surface');
+                    const icon = i.querySelector('.material-symbols-outlined');
+                    if(icon) icon.style.fontVariationSettings = "'FILL' 0";
+                });
+                this.classList.add('bg-secondary-container', 'text-on-secondary-container', 'font-bold');
+                this.classList.remove('text-on-surface-variant', 'hover:text-on-surface');
+                const activeIcon = this.querySelector('.material-symbols-outlined');
+                if(activeIcon) activeIcon.style.fontVariationSettings = "'FILL' 1";
+            });
+        });
+    </script>
+
+
+</body></html>
