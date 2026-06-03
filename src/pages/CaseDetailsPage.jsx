@@ -7,7 +7,76 @@ import { dynamoClient, s3Client, lambdaClient } from '../lib/awsClients'
 import { awsConfig } from '../aws-config'
 import { currentUser } from '../data/mockData'
 
-const TABS = ['Overview', 'Documents', 'Identity & Fraud', 'AML', 'Risk', 'Activity', 'Notes', 'Audit', 'Decisions']
+const TABS = ['Profile', 'Documents', 'Identity & Fraud', 'AML', 'Risk', 'Activity', 'Notes', 'Audit', 'Decisions']
+
+const DOC_HIERARCHY = ['Passport', 'National ID', 'Trade License', 'Certificate of Incorporation', 'Power of Attorney', 'Salary Certificate', 'Utility Bill', 'Bank Statement', 'MOA']
+
+const PROFILE_GROUPS_INDIVIDUAL = [
+  {
+    group: 'Personal Information', icon: 'person',
+    fields: [
+      { key: 'fullName',      label: 'Full Name',     sources: ['Passport', 'National ID'] },
+      { key: 'dateOfBirth',   label: 'Date of Birth', sources: ['Passport', 'National ID'] },
+      { key: 'gender',        label: 'Gender',        sources: ['Passport', 'National ID'] },
+      { key: 'maritalStatus', label: 'Marital Status',sources: [], manual: true },
+      { key: 'nationality',   label: 'Nationality',   sources: ['Passport', 'National ID'] },
+      { key: 'address',       label: 'Address',       sources: ['Passport', 'National ID'] },
+    ]
+  },
+  {
+    group: 'Contact Information', icon: 'contact_phone',
+    fields: [
+      { key: 'phoneNumber', label: 'Phone Number',  sources: [], manual: true },
+      { key: 'email',       label: 'Email Address', sources: [], manual: true },
+    ]
+  },
+  {
+    group: 'Identity Document', icon: 'badge',
+    fields: [
+      { key: 'passportNumber', label: 'Passport Number',    sources: ['Passport'] },
+      { key: 'idNumber',       label: 'National ID Number', sources: ['National ID'] },
+      { key: 'issueDate',      label: 'Issue Date',         sources: ['Passport', 'National ID'] },
+      { key: 'expiryDate',     label: 'Expiry Date',        sources: ['Passport', 'National ID'] },
+      { key: 'issuingCountry', label: 'Issuing Country',    sources: ['Passport', 'National ID'] },
+    ]
+  },
+  {
+    group: 'Employment Information', icon: 'work',
+    fields: [
+      { key: 'employerName',  label: 'Employer Name',  sources: ['Salary Certificate'] },
+      { key: 'jobTitle',      label: 'Job Title',      sources: ['Salary Certificate'] },
+      { key: 'monthlySalary', label: 'Monthly Salary', sources: ['Salary Certificate'] },
+    ]
+  },
+]
+
+const PROFILE_GROUPS_BUSINESS = [
+  {
+    group: 'Company Details', icon: 'business',
+    fields: [
+      { key: 'companyName',        label: 'Company Name',          sources: ['Trade License', 'Certificate of Incorporation'] },
+      { key: 'tradeLicenseNumber', label: 'Trade License Number',  sources: ['Trade License'] },
+      { key: 'incorporationDate',  label: 'Date of Incorporation', sources: ['Certificate of Incorporation'] },
+      { key: 'businessType',       label: 'Business Type',         sources: ['Trade License'] },
+      { key: 'industry',           label: 'Industry',              sources: [], manual: true },
+      { key: 'annualRevenue',      label: 'Annual Revenue',        sources: [], manual: true },
+      { key: 'numberOfEmployees',  label: 'No. of Employees',      sources: [], manual: true },
+      { key: 'address',            label: 'Address',               sources: [], manual: true },
+    ]
+  },
+  {
+    group: 'Authorized Signatory', icon: 'person',
+    fields: [
+      { key: 'fullName',       label: 'Full Name',       sources: ['Passport', 'National ID'] },
+      { key: 'designation',    label: 'Designation',     sources: [], manual: true },
+      { key: 'nationality',    label: 'Nationality',     sources: ['Passport', 'National ID'] },
+      { key: 'documentNumber', label: 'Document Number', sources: ['Passport', 'National ID'] },
+      { key: 'issueDate',      label: 'Issue Date',      sources: ['Passport', 'National ID'] },
+      { key: 'expiryDate',     label: 'Expiry Date',     sources: ['Passport', 'National ID'] },
+      { key: 'issuingCountry', label: 'Issuing Country', sources: ['Passport', 'National ID'] },
+    ]
+  },
+]
 
 const REQUIRED_DOCS = {
   'Credit Card':       ['Passport / National ID', 'Utility Bill', 'Bank Statement', 'Selfie'],
@@ -24,13 +93,13 @@ const DOC_TYPE_OPTIONS = {
 }
 
 const REQUIRED_FIELDS_BY_DOC_TYPE = {
-  'Passport':                    ['fullName', 'passportNumber', 'nationality', 'dateOfBirth', 'gender', 'issueDate', 'expiryDate', 'issuingCountry'],
-  'National ID':                 ['fullName', 'idNumber', 'dateOfBirth', 'nationality', 'expiryDate', 'gender', 'address'],
-  'Utility Bill':                ['customerName', 'serviceAddress', 'billDate', 'accountNumber', 'utilityProvider'],
-  'Bank Statement':              ['accountHolderName', 'accountNumber', 'iban', 'bankName', 'statementStartDate', 'statementEndDate', 'closingBalance'],
+  'Passport':                    ['fullName', 'passportNumber', 'nationality', 'dateOfBirth', 'gender', 'issueDate', 'expiryDate', 'issuingCountry', 'address'],
+  'National ID':                 ['fullName', 'idNumber', 'dateOfBirth', 'nationality', 'issueDate', 'expiryDate', 'gender', 'issuingCountry', 'address'],
+  'Utility Bill':                ['customerName', 'customerAddress', 'billDate', 'utilityProvider'],
+  'Bank Statement':              ['accountHolderName', 'accountNumber', 'bankName', 'statementStartDate', 'statementEndDate', 'closingBalance', 'customerAddress'],
   'Selfie':                      [],
-  'Salary Certificate':          ['employeeName', 'employerName', 'employeeId', 'monthlySalary', 'netSalary', 'issueDate', 'jobTitle'],
-  'Trade License':               ['companyName', 'tradeLicenseNumber', 'businessActivity', 'issueDate', 'expiryDate', 'licensingAuthority'],
+  'Salary Certificate':          ['employeeName', 'employerName', 'monthlySalary', 'issueDate', 'jobTitle'],
+  'Trade License':               ['companyName', 'tradeLicenseNumber', 'businessType', 'issueDate', 'expiryDate', 'licensingAuthority'],
   'Certificate of Incorporation':['companyName', 'registrationNumber', 'incorporationDate', 'country'],
   'MOA':                         ['companyName', 'registrationNumber', 'authorizedSignatories', 'issueDate'],
   'Power of Attorney':           ['principalName', 'attorneyName', 'effectiveDate', 'expiryDate', 'scope'],
@@ -64,12 +133,16 @@ export default function CaseDetailsPage() {
     else setLoading(false)
   }, [appId, refreshKey])
 
-  const fd = caseData?.formData ?? {}
   const isIndividual = !caseData || caseData.customerType === 'individual'
+  const pd = caseData?.profileData ?? {}
+  const _aiFullNameRaw = caseData?.aiResults?.find(r => r?.extractedFields?.fullName)?.extractedFields?.fullName
+  const aiFullName = typeof _aiFullNameRaw === 'object' ? (_aiFullNameRaw?.value ?? '') : (_aiFullNameRaw ?? '')
+  const _aiCompanyRaw = caseData?.aiResults?.find(r => r?.extractedFields?.companyName)?.extractedFields?.companyName
+  const aiCompanyName = typeof _aiCompanyRaw === 'object' ? (_aiCompanyRaw?.value ?? '') : (_aiCompanyRaw ?? '')
   const customerName = isIndividual
-    ? [fd.firstName, fd.middleName, fd.lastName].filter(Boolean).join(' ') || '—'
-    : fd.legalEntityName || '—'
-  const customerTypeLabel = isIndividual ? 'Individual Onboarding' : 'Corporate Onboarding'
+    ? (pd.fullName || aiFullName || '—')
+    : (pd.companyName || aiCompanyName || '—')
+  const productVariant = caseData?.productVariant || ''
   const statusLabel = (caseData?.status || 'in_review').replace(/_/g, ' ')
 
   return (
@@ -164,7 +237,9 @@ export default function CaseDetailsPage() {
                 <h2 className="text-display-lg font-display-lg text-on-surface">{appId}</h2>
                 <span className="px-3 py-1 bg-secondary-fixed text-on-secondary-fixed text-label-md rounded-full capitalize">{statusLabel}</span>
               </div>
-              <p className="text-body-lg text-on-surface-variant">{customerName} • {customerTypeLabel}</p>
+              <p className="text-body-lg text-on-surface-variant">
+                {customerName} • {caseData?.product || '—'}{productVariant ? ` / ${productVariant}` : ''}
+              </p>
             </div>
             <div className="flex gap-3">
               <button className="px-4 py-[10px] border border-outline rounded-lg text-label-md font-bold hover:bg-surface-container-high transition-colors" type="button">Escalate</button>
@@ -181,7 +256,7 @@ export default function CaseDetailsPage() {
             <button
               key={tab}
               onClick={() => setActiveTab(i)}
-              className={`pb-3 text-label-md whitespace-nowrap transition-colors ${
+              className={`pb-3 text-label-md whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                 i === activeTab
                   ? 'text-primary font-bold border-b-2 border-primary -mb-px'
                   : 'text-on-surface-variant font-medium hover:text-on-surface'
@@ -189,6 +264,9 @@ export default function CaseDetailsPage() {
               type="button"
             >
               {tab}
+              {i === 0 && !caseData?.profileData?.confirmedAt && !loading && (
+                <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 14 }}>warning</span>
+              )}
             </button>
           ))}
         </div>
@@ -198,7 +276,7 @@ export default function CaseDetailsPage() {
           <main className="flex-1 overflow-y-auto p-margin-desktop bg-background space-y-stack-lg main-scroll">
             {loading
               ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
-              : <OverviewContent appId={appId} caseData={caseData} />
+              : <ProfileTab caseData={caseData} onProfileSaved={() => { setLoading(true); setRefreshKey(k => k + 1) }} />
             }
           </main>
         )}
@@ -216,7 +294,7 @@ export default function CaseDetailsPage() {
           <main className="flex-1 overflow-y-auto p-margin-desktop bg-background main-scroll">
             {loading
               ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
-              : <IdentityFraudTab caseData={caseData} />
+              : <IdentityFraudTab caseData={caseData} onRefresh={() => { setLoading(true); setRefreshKey(k => k + 1) }} />
             }
           </main>
         )}
@@ -540,6 +618,38 @@ function DocumentsTab({ caseData, onRefresh }) {
   )
 }
 
+// ─── Cross-document consistency checks ───────────────────────────────────────
+
+function computeCrossChecks(detectedType, fields, allAiResults) {
+  const getField = (result, key) => {
+    const raw = result?.extractedFields?.[key]
+    return typeof raw === 'object' ? (raw?.value ?? null) : (raw ?? null)
+  }
+  const norm = str => str?.toString().trim().toLowerCase().replace(/\s+/g, ' ') ?? ''
+  const compare = (a, b) => a && b ? (norm(a) === norm(b) ? 'pass' : 'fail') : 'na'
+
+  const passport  = allAiResults.find(r => r?.documentType === 'Passport')
+  const nationalId = allAiResults.find(r => r?.documentType === 'National ID')
+  const idDoc = passport ?? nationalId
+
+  const refName    = getField(idDoc, 'fullName')
+  const refAddress = getField(passport, 'address') ?? getField(nationalId, 'address')
+
+  const checks = []
+
+  if (detectedType === 'Utility Bill') {
+    checks.push({ label: 'Name Match',    status: compare(fields.customerName,    refName)    })
+    checks.push({ label: 'Address Match', status: compare(fields.customerAddress, refAddress) })
+  } else if (detectedType === 'Bank Statement') {
+    checks.push({ label: 'Name Match',    status: compare(fields.accountHolderName, refName)    })
+    checks.push({ label: 'Address Match', status: compare(fields.customerAddress,   refAddress) })
+  } else if (detectedType === 'Salary Certificate') {
+    checks.push({ label: 'Name Match', status: compare(fields.employeeName, refName) })
+  }
+
+  return checks.filter(c => c.status !== 'na')
+}
+
 // ─── Document Review Panel ────────────────────────────────────────────────────
 
 function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOptions, appId, onSave }) {
@@ -699,7 +809,10 @@ function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOption
           </div>
 
           {/* Quality checks */}
-          <QualityChecksPanel qualityChecks={aiResult?.qualityChecks} />
+          <QualityChecksPanel
+            qualityChecks={aiResult?.qualityChecks}
+            crossChecks={computeCrossChecks(detectedType, fields, allAiResults)}
+          />
 
           {/* Extracted fields */}
           {detectedType !== 'Selfie' && (
@@ -717,7 +830,7 @@ function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOption
                   return (
                     <tr key={key}>
                       <td className="py-2 px-3 text-label-md text-on-surface-variant">
-                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim()}
                       </td>
                       <td className="py-1.5 px-3">
                         <div className="flex items-center gap-1.5">
@@ -767,28 +880,26 @@ function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOption
 
 // ─── Quality Checks Panel ─────────────────────────────────────────────────────
 
-function QualityChecksPanel({ qualityChecks }) {
-  if (!qualityChecks) return null
-
+function QualityChecksPanel({ qualityChecks, crossChecks = [] }) {
   const checks = [
-    { key: 'imageClarity',      label: 'Image Clarity'      },
-    { key: 'fullyVisible',      label: 'Fully Visible'      },
-    { key: 'notExpired',        label: 'Not Expired'        },
-    { key: 'noTampering',       label: 'No Tampering'       },
-    { key: 'mrzValid',          label: 'MRZ Valid'          },
-    { key: 'faceVisible',       label: 'Face Visible'       },
-    { key: 'livenessIndicator', label: 'Liveness'           },
+    { key: 'imageClarity',      label: 'Image Clarity' },
+    { key: 'fullyVisible',      label: 'Fully Visible' },
+    { key: 'notExpired',        label: 'Not Expired'   },
+    { key: 'noTampering',       label: 'No Tampering'  },
+    { key: 'mrzValid',          label: 'MRZ Valid'     },
+    { key: 'faceVisible',       label: 'Face Visible'  },
+    { key: 'livenessIndicator', label: 'Liveness'      },
   ]
 
   const styles = {
-    pass: { icon: 'check_circle', cls: 'text-green-600', bg: 'bg-green-50',  label: 'PASS' },
-    warn: { icon: 'warning',      cls: 'text-amber-600', bg: 'bg-amber-50',  label: 'WARN' },
-    fail: { icon: 'cancel',       cls: 'text-red-600',   bg: 'bg-red-50',    label: 'FAIL' },
-    na:   { icon: 'remove',       cls: 'text-outline',   bg: 'bg-surface-container-low', label: 'N/A' },
+    pass: { icon: 'check_circle', cls: 'text-green-600', bg: 'bg-green-50',              label: 'PASS' },
+    warn: { icon: 'warning',      cls: 'text-amber-600', bg: 'bg-amber-50',              label: 'WARN' },
+    fail: { icon: 'cancel',       cls: 'text-red-600',   bg: 'bg-red-50',                label: 'FAIL' },
+    na:   { icon: 'remove',       cls: 'text-outline',   bg: 'bg-surface-container-low', label: 'N/A'  },
   }
 
-  const visible = checks.filter(({ key }) => (qualityChecks[key] ?? 'na') !== 'na')
-  if (!visible.length) return null
+  const visible = qualityChecks ? checks.filter(({ key }) => (qualityChecks[key] ?? 'na') !== 'na') : []
+  if (!visible.length && !crossChecks.length) return null
 
   return (
     <div className="space-y-1.5">
@@ -798,6 +909,15 @@ function QualityChecksPanel({ qualityChecks }) {
           const s = styles[qualityChecks[key]] ?? styles.na
           return (
             <span key={key} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${s.cls} ${s.bg} border-current/20`}>
+              <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: '"FILL" 1' }}>{s.icon}</span>
+              {label}
+            </span>
+          )
+        })}
+        {crossChecks.map(({ label, status }) => {
+          const s = styles[status] ?? styles.na
+          return (
+            <span key={label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${s.cls} ${s.bg} border-current/20`}>
               <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: '"FILL" 1' }}>{s.icon}</span>
               {label}
             </span>
@@ -844,7 +964,7 @@ const LOW_RISK_COUNTRIES = ['united kingdom', 'uk', 'united states', 'usa', 'us'
 
 function AMLTab({ caseData }) {
   const appId = caseData?.appId ?? ''
-  const fd = caseData?.formData ?? {}
+  const pd = caseData?.profileData ?? {}
 
   const sanctions = SANCTIONS_LISTS.map(src => ({
     source: src,
@@ -861,9 +981,9 @@ function AMLTab({ caseData }) {
     result: amlRoll(appId, 'media_' + src, 6) === 0 ? 'flag' : 'clean',
   }))
 
-  const nationality = fd.nationality || fd.signatoryNationality || ''
-  const country = fd.countryOfResidence || fd.country || ''
-  const employment = fd.employmentStatus || ''
+  const nationality = pd.nationality || ''
+  const country = pd.country || pd.address || ''
+  const employment = pd.employerName ? 'Employed' : ''
 
   function countryRisk(c) {
     if (!c) return ['LOW', 'MEDIUM'][amlRoll(appId, 'ctry_empty', 2)]
@@ -1156,100 +1276,211 @@ function IdentityStatusCard({ score, status }) {
   )
 }
 
-function FaceMatchCard({ aiResults, uploadedDocs }) {
-  const [idUrl, setIdUrl] = useState(null)
-  const [selfieUrl, setSelfieUrl] = useState(null)
+function CroppedFace({ imageUrl, boundingBox, label, accent = 'bg-primary' }) {
+  const canvasRef = useRef(null)
 
-  const passportIdx = aiResults.findIndex(r => r?.documentType === 'Passport')
+  useEffect(() => {
+    if (!imageUrl || !boundingBox || !canvasRef.current) return
+    const img = new Image()
+    img.onload = () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      const { Left, Top, Width, Height } = boundingBox
+      const padX = Width * 0.3
+      const padY = Height * 0.3
+      const sx = Math.max(0, (Left - padX) * img.naturalWidth)
+      const sy = Math.max(0, (Top - padY) * img.naturalHeight)
+      const sw = Math.min(img.naturalWidth - sx, (Width + 2 * padX) * img.naturalWidth)
+      const sh = Math.min(img.naturalHeight - sy, (Height + 2 * padY) * img.naturalHeight)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+    }
+    img.src = imageUrl
+  }, [imageUrl, boundingBox])
+
+  return (
+    <div className="relative rounded overflow-hidden border border-outline-variant bg-surface-container flex-1">
+      {imageUrl
+        ? <canvas ref={canvasRef} width={120} height={140} className="w-full h-auto" />
+        : <div className="h-[140px] flex items-center justify-center">
+            <span className="material-symbols-outlined animate-spin text-outline">progress_activity</span>
+          </div>
+      }
+      <div className={`absolute bottom-0 inset-x-0 ${accent}/80 text-white text-[9px] py-0.5 px-1 uppercase font-bold tracking-widest text-center truncate`}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
+function FaceMatchSimilarity({ similarity, status }) {
+  const cls = status === 'pass' ? 'text-green-600' : status === 'warn' ? 'text-amber-600' : 'text-red-600'
+  const icon = status === 'pass' ? 'check_circle' : status === 'warn' ? 'warning' : 'cancel'
+  return (
+    <div className={`flex flex-col items-center gap-1 px-2 ${cls}`}>
+      <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: '"FILL" 1' }}>{icon}</span>
+      <span className="text-[11px] font-bold">{similarity}%</span>
+    </div>
+  )
+}
+
+function FaceMatchCard({ aiResults, uploadedDocs, faceMatch, appId, onRefresh }) {
+  const passportIdx  = aiResults.findIndex(r => r?.documentType === 'Passport')
   const nationalIdIdx = aiResults.findIndex(r => r?.documentType === 'National ID')
-  const selfieIdx = aiResults.findIndex(r => r?.documentType === 'Selfie')
-  const idIdx = passportIdx >= 0 ? passportIdx : nationalIdIdx
-  const idLabel = (passportIdx >= 0 ? 'Passport' : 'National ID') + ' Image'
+  const selfieIdx    = aiResults.findIndex(r => r?.documentType === 'Selfie')
+
+  const passportKey  = passportIdx  >= 0 ? (uploadedDocs[passportIdx]?.key  ?? null) : null
+  const nationalIdKey = nationalIdIdx >= 0 ? (uploadedDocs[nationalIdIdx]?.key ?? null) : null
+  const selfieKey    = selfieIdx    >= 0 ? (uploadedDocs[selfieIdx]?.key    ?? null) : null
+
   const selfieResult = selfieIdx >= 0 ? aiResults[selfieIdx] : null
-  const liveness = selfieResult?.qualityChecks?.livenessIndicator ?? 'na'
-  const faceVisibleVal = selfieResult?.qualityChecks?.faceVisible ?? 'na'
+  const liveness     = selfieResult?.qualityChecks?.livenessIndicator ?? 'na'
+  const faceVisible  = selfieResult?.qualityChecks?.faceVisible ?? 'na'
 
-  const idKey = idIdx >= 0 ? (uploadedDocs[idIdx]?.key ?? null) : null
-  const selfieKey = selfieIdx >= 0 ? (uploadedDocs[selfieIdx]?.key ?? null) : null
+  const [passportUrl,  setPassportUrl]  = useState(null)
+  const [nationalIdUrl, setNationalIdUrl] = useState(null)
+  const [selfieUrl,    setSelfieUrl]    = useState(null)
+  const [running,      setRunning]      = useState(false)
 
-  useEffect(() => {
-    if (!idKey) return
-    let url
-    ;(async () => {
-      try {
-        const obj = await s3Client.send(new GetObjectCommand({ Bucket: awsConfig.s3BucketName, Key: idKey }))
-        const bytes = await obj.Body.transformToByteArray()
-        url = URL.createObjectURL(new Blob([bytes], { type: obj.ContentType || 'image/jpeg' }))
-        setIdUrl(url)
-      } catch {}
-    })()
-    return () => { if (url) URL.revokeObjectURL(url) }
-  }, [idKey])
+  function useS3Url(key, setter) {
+    useEffect(() => {
+      if (!key) return
+      let url
+      ;(async () => {
+        try {
+          const obj = await s3Client.send(new GetObjectCommand({ Bucket: awsConfig.s3BucketName, Key: key }))
+          const bytes = await obj.Body.transformToByteArray()
+          url = URL.createObjectURL(new Blob([bytes], { type: obj.ContentType || 'image/jpeg' }))
+          setter(url)
+        } catch {}
+      })()
+      return () => { if (url) URL.revokeObjectURL(url) }
+    }, [key])
+  }
+  useS3Url(passportKey,   setPassportUrl)
+  useS3Url(nationalIdKey, setNationalIdUrl)
+  useS3Url(selfieKey,     setSelfieUrl)
 
-  useEffect(() => {
-    if (!selfieKey) return
-    let url
-    ;(async () => {
-      try {
-        const obj = await s3Client.send(new GetObjectCommand({ Bucket: awsConfig.s3BucketName, Key: selfieKey }))
-        const bytes = await obj.Body.transformToByteArray()
-        url = URL.createObjectURL(new Blob([bytes], { type: obj.ContentType || 'image/jpeg' }))
-        setSelfieUrl(url)
-      } catch {}
-    })()
-    return () => { if (url) URL.revokeObjectURL(url) }
-  }, [selfieKey])
+  async function handleRun() {
+    if (!selfieKey || (!passportKey && !nationalIdKey)) return
+    setRunning(true)
+    try {
+      await lambdaClient.send(new InvokeCommand({
+        FunctionName: awsConfig.faceMatchFunctionName,
+        Payload: new TextEncoder().encode(JSON.stringify({
+          appId,
+          selfieKey,
+          ...(passportKey   ? { passportKey }         : {}),
+          ...(nationalIdKey ? { idDocKey: nationalIdKey } : {}),
+        })),
+      }))
+      onRefresh?.()
+    } catch (err) {
+      console.error('Face match failed:', err)
+    } finally {
+      setRunning(false)
+    }
+  }
 
-  const hasBoth = idIdx >= 0 && selfieIdx >= 0
-  const livenessOk = liveness === 'pass'
-  const livenessIcon = livenessOk ? 'check_circle' : liveness === 'fail' ? 'cancel' : 'warning'
-  const livenessCls = livenessOk ? 'text-green-600' : liveness === 'fail' ? 'text-red-600' : 'text-amber-600'
-  const livenessLabel = livenessOk ? 'PASSED' : liveness === 'fail' ? 'FAILED' : liveness === 'na' ? '—' : 'WARN'
+  const hasSelfie = !!selfieKey
+  const hasIdDoc  = !!(passportKey || nationalIdKey)
+  const passportMatch  = faceMatch?.passport
+  const nationalIdMatch = faceMatch?.nationalId
+  const hasResults = !!(passportMatch || nationalIdMatch)
+
+  const livenessRow = liveness !== 'na' && (
+    <div className="flex justify-between items-center text-body-sm">
+      <span className="text-on-surface-variant">Liveness Check</span>
+      <span className={`font-bold flex items-center gap-1 ${liveness === 'pass' ? 'text-green-600' : liveness === 'fail' ? 'text-red-600' : 'text-amber-600'}`}>
+        <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>
+          {liveness === 'pass' ? 'check_circle' : liveness === 'fail' ? 'cancel' : 'warning'}
+        </span>
+        {liveness === 'pass' ? 'PASSED' : liveness === 'fail' ? 'FAILED' : 'WARN'}
+      </span>
+    </div>
+  )
+
+  const faceVisibleRow = faceVisible !== 'na' && (
+    <div className="flex justify-between items-center text-body-sm">
+      <span className="text-on-surface-variant">Face Visible</span>
+      <span className={`font-bold ${faceVisible === 'pass' ? 'text-green-600' : faceVisible === 'fail' ? 'text-red-600' : 'text-amber-600'}`}>
+        {faceVisible === 'pass' ? 'CONFIRMED' : faceVisible === 'fail' ? 'NOT DETECTED' : 'WARN'}
+      </span>
+    </div>
+  )
 
   return (
     <div className="bg-white rounded border border-outline-variant overflow-hidden">
-      <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+      <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant flex items-center justify-between">
         <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Face Match Verification</h2>
+        {hasSelfie && hasIdDoc && (
+          <button type="button" onClick={handleRun} disabled={running}
+            className="flex items-center gap-1 text-[11px] font-bold text-secondary hover:text-primary disabled:opacity-60 transition-colors">
+            <span className={`material-symbols-outlined text-[14px] ${running ? 'animate-spin' : ''}`}>
+              {running ? 'progress_activity' : 'refresh'}
+            </span>
+            {running ? 'Running…' : hasResults ? 'Re-run' : 'Run'}
+          </button>
+        )}
       </div>
-      <div className="p-stack-lg">
-        {!hasBoth ? (
-          <div className="py-8 text-center text-body-sm text-on-surface-variant">
-            {idIdx < 0 ? 'No ID document uploaded yet.' : 'No selfie uploaded yet.'}
+      <div className="p-stack-lg space-y-4">
+        {!hasSelfie || !hasIdDoc ? (
+          <div className="py-6 text-center text-body-sm text-on-surface-variant">
+            {!hasSelfie ? 'No selfie uploaded yet.' : 'No ID document uploaded yet.'}
           </div>
-        ) : (
+        ) : hasResults ? (
           <>
-            <div className="grid grid-cols-2 gap-stack-md mb-stack-lg">
+            {passportMatch && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Passport vs Selfie</p>
+                <div className="flex items-center gap-2">
+                  <CroppedFace imageUrl={passportUrl}  boundingBox={passportMatch.sourceBoundingBox} label="Passport"  accent="bg-primary" />
+                  <FaceMatchSimilarity similarity={passportMatch.similarity} status={passportMatch.status} />
+                  <CroppedFace imageUrl={selfieUrl}    boundingBox={passportMatch.targetBoundingBox} label="Selfie"    accent="bg-secondary" />
+                </div>
+              </div>
+            )}
+            {nationalIdMatch && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">National ID vs Selfie</p>
+                <div className="flex items-center gap-2">
+                  <CroppedFace imageUrl={nationalIdUrl} boundingBox={nationalIdMatch.sourceBoundingBox} label="National ID" accent="bg-primary" />
+                  <FaceMatchSimilarity similarity={nationalIdMatch.similarity} status={nationalIdMatch.status} />
+                  <CroppedFace imageUrl={selfieUrl}     boundingBox={nationalIdMatch.targetBoundingBox} label="Selfie"      accent="bg-secondary" />
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
-                {idUrl
-                  ? <img src={idUrl} alt="ID" className="w-full h-full object-cover" />
+                {(passportUrl || nationalIdUrl)
+                  ? <img src={passportUrl ?? nationalIdUrl} alt="ID" className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-outline">progress_activity</span></div>
                 }
-                <div className="absolute bottom-0 left-0 right-0 bg-primary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">{idLabel}</div>
+                <div className="absolute bottom-0 inset-x-0 bg-primary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">
+                  {passportKey ? 'Passport' : 'National ID'}
+                </div>
               </div>
               <div className="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
                 {selfieUrl
                   ? <img src={selfieUrl} alt="Selfie" className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-outline">progress_activity</span></div>
                 }
-                <div className="absolute bottom-0 left-0 right-0 bg-secondary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">Live Selfie</div>
+                <div className="absolute bottom-0 inset-x-0 bg-secondary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">Selfie</div>
               </div>
             </div>
-            <div className="space-y-stack-sm">
-              <div className="flex justify-between items-center text-body-sm">
-                <span className="text-on-surface-variant">Liveness Check</span>
-                <span className={`font-bold flex items-center gap-1 ${livenessCls}`}>
-                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>{livenessIcon}</span>
-                  {livenessLabel}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-body-sm">
-                <span className="text-on-surface-variant">Face Visible</span>
-                <span className={`font-bold ${faceVisibleVal === 'pass' ? 'text-green-600' : faceVisibleVal === 'fail' ? 'text-red-600' : 'text-amber-600'}`}>
-                  {faceVisibleVal === 'pass' ? 'CONFIRMED' : faceVisibleVal === 'fail' ? 'NOT DETECTED' : faceVisibleVal === 'na' ? '—' : 'WARN'}
-                </span>
-              </div>
-            </div>
-          </>
+            <p className="text-body-sm text-on-surface-variant text-center">Click Run to compare faces using Rekognition</p>
+          </div>
+        )}
+
+        {(livenessRow || faceVisibleRow) && (
+          <div className="border-t border-outline-variant pt-3 space-y-stack-sm">
+            {livenessRow}
+            {faceVisibleRow}
+          </div>
         )}
       </div>
     </div>
@@ -1393,7 +1624,7 @@ function AnalystObservationPanel({ rows, aiResults }) {
   )
 }
 
-function IdentityFraudTab({ caseData }) {
+function IdentityFraudTab({ caseData, onRefresh }) {
   const aiResults = caseData?.aiResults ?? []
   const uploadedDocs = caseData?.documents ?? []
   const rows = buildConsistencyRows(aiResults)
@@ -1405,7 +1636,13 @@ function IdentityFraudTab({ caseData }) {
     <div className="grid grid-cols-12 gap-6">
       <div className="col-span-12 lg:col-span-4 space-y-6">
         <IdentityStatusCard score={score} status={overallStatus} />
-        <FaceMatchCard aiResults={aiResults} uploadedDocs={uploadedDocs} />
+        <FaceMatchCard
+          aiResults={aiResults}
+          uploadedDocs={uploadedDocs}
+          faceMatch={caseData?.faceMatch}
+          appId={caseData?.appId}
+          onRefresh={onRefresh}
+        />
       </div>
       <div className="col-span-12 lg:col-span-8 space-y-6">
         <ConsistencyTable rows={rows} />
@@ -1420,154 +1657,277 @@ function IdentityFraudTab({ caseData }) {
   )
 }
 
-// ─── Overview Tab ─────────────────────────────────────────────────────────────
+// ─── Profile Tab ──────────────────────────────────────────────────────────────
 
-function SectionHeader({ children }) {
-  return (
-    <div className="bg-surface-container-low px-stack-lg py-stack-sm border-b border-outline-variant">
-      <span className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">{children}</span>
-    </div>
-  )
+function aggregateFields(aiResults) {
+  const map = {}
+  for (const result of (aiResults ?? [])) {
+    if (!result?.extractedFields || result.documentType === 'Selfie') continue
+    for (const [key, raw] of Object.entries(result.extractedFields)) {
+      const value = typeof raw === 'object' ? (raw?.value ?? '') : (raw ?? '')
+      const confidence = typeof raw === 'object' ? (raw?.confidence ?? null) : null
+      if (!value) continue
+      if (!map[key]) map[key] = []
+      map[key].push({ value, confidence, docType: result.documentType })
+    }
+  }
+  return map
 }
 
-function Field({ label, children }) {
-  return (
-    <div className="space-y-unit">
-      <p className="text-label-md font-label-md text-on-surface-variant">{label}</p>
-      <p className="text-body-md font-body-md text-on-surface">{children}</p>
-    </div>
-  )
+function bestEntry(entries) {
+  return entries.slice().sort((a, b) => {
+    const ai = DOC_HIERARCHY.indexOf(a.docType)
+    const bi = DOC_HIERARCHY.indexOf(b.docType)
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+  })[0]
 }
 
-function OverviewContent({ appId, caseData }) {
-  const fd = caseData?.formData ?? {}
+function hasConflict(entries) {
+  if (!entries || entries.length < 2) return false
+  const vals = new Set(entries.map(e => e.value.trim().toLowerCase()))
+  return vals.size > 1
+}
+
+// Returns entries for a field, filtered to the field's declared sources (if any).
+// This prevents cross-group false conflicts — e.g. Passport issueDate vs Salary Certificate issueDate.
+function getEntriesForField(agg, fieldDef) {
+  const keys = [fieldDef.key, ...(fieldDef.aliases ?? [])]
+  const all = keys.flatMap(k => agg[k] ?? [])
+  if (!fieldDef.sources?.length) return all
+  const filtered = all.filter(e => fieldDef.sources.includes(e.docType))
+  return filtered.length ? filtered : all
+}
+
+function buildInitialProfile(aiResults, groups) {
+  const agg = aggregateFields(aiResults)
+  const profile = {}
+  for (const grp of groups) {
+    for (const f of grp.fields) {
+      const entries = getEntriesForField(agg, f)
+      if (entries.length) profile[f.key] = bestEntry(entries).value
+    }
+  }
+  return profile
+}
+
+function ConfidenceChip({ confidence }) {
+  if (confidence == null) return null
+  const pct = typeof confidence === 'number' ? confidence : parseFloat(confidence)
+  if (isNaN(pct)) return null
+  const cls = pct >= 80 ? 'bg-green-100 text-green-700' : pct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+  const label = pct >= 80 ? 'High' : pct >= 50 ? 'Medium' : 'Low'
+  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cls}`}>{label}</span>
+}
+
+function SourceChip({ docType }) {
+  if (!docType) return null
+  return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary-container text-on-secondary-container truncate max-w-full block">{docType}</span>
+}
+
+function ProfileTab({ caseData, onProfileSaved }) {
   const isIndividual = !caseData || caseData.customerType === 'individual'
-  const fullName = isIndividual
-    ? [fd.firstName, fd.middleName, fd.lastName].filter(Boolean).join(' ') || '—'
-    : fd.legalEntityName || '—'
-  const productType = isIndividual ? 'Retail Banking' : 'Commercial Banking'
+  const groups = isIndividual ? PROFILE_GROUPS_INDIVIDUAL : PROFILE_GROUPS_BUSINESS
+  const aiResults = caseData?.aiResults ?? []
+  const agg = aggregateFields(aiResults)
+  const confirmed = !!caseData?.profileData?.confirmedAt
+
+  const [localProfile, setLocalProfile] = useState(() => {
+    if (caseData?.profileData) {
+      const { confirmedAt, confirmedBy, ...rest } = caseData.profileData
+      return rest
+    }
+    return buildInitialProfile(aiResults, groups)
+  })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+  const [resolvedFields, setResolvedFields] = useState(() =>
+    caseData?.profileData?.confirmedAt
+      ? new Set(groups.flatMap(g => g.fields).map(f => f.key))
+      : new Set()
+  )
+  const [resolvedSources, setResolvedSources] = useState(() => {
+    if (!caseData?.profileData?.confirmedAt) return {}
+    const saved = caseData.profileData
+    const result = {}
+    for (const grp of groups) {
+      for (const f of grp.fields) {
+        const entries = getEntriesForField(agg, f)
+        const savedValue = saved[f.key]
+        if (savedValue && entries.length) {
+          const match = entries.find(e => e.value === savedValue)
+          if (match) result[f.key] = match.docType
+        }
+      }
+    }
+    return result
+  })
+
+  const totalConflicts = groups.flatMap(g => g.fields).filter(f => hasConflict(getEntriesForField(agg, f)) && !resolvedFields.has(f.key)).length
+
+  function handleChange(key, value) {
+    setLocalProfile(prev => ({ ...prev, [key]: value }))
+    setIsDirty(true)
+    setSaved(false)
+  }
+
+  function handleConflictResolve(key, value, docType) {
+    setLocalProfile(prev => ({ ...prev, [key]: value }))
+    setIsDirty(true)
+    setSaved(false)
+    setResolvedFields(prev => new Set([...prev, key]))
+    setResolvedSources(prev => ({ ...prev, [key]: docType }))
+  }
+
+  async function handleConfirm() {
+    setSaving(true)
+    try {
+      const profileData = {
+        ...localProfile,
+        confirmedAt: new Date().toISOString(),
+        confirmedBy: currentUser.name,
+      }
+      await dynamoClient.send(new UpdateCommand({
+        TableName: awsConfig.dynamoTableName,
+        Key: { appId: caseData.appId },
+        UpdateExpression: 'SET profileData = :pd, updatedAt = :ua',
+        ExpressionAttributeValues: { ':pd': profileData, ':ua': new Date().toISOString() },
+      }))
+      setSaved(true)
+      setIsDirty(false)
+      setResolvedFields(new Set(groups.flatMap(g => g.fields).map(f => f.key)))
+      onProfileSaved()
+    } catch (err) {
+      console.error('Failed to save profile:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <div className="space-y-stack-lg">
-      {/* Summary row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-stack-lg">
-        <section className="lg:col-span-2 bg-white rounded-lg border border-outline-variant overflow-hidden">
-          <SectionHeader>Case Summary</SectionHeader>
-          <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-y-stack-lg gap-x-stack-md">
-            <Field label="Application ID"><span className="font-bold">{appId}</span></Field>
-            <Field label="Customer Name"><span className="font-bold">{fullName}</span></Field>
-            <Field label="Product">{caseData?.product || 'N/A'}</Field>
-            <Field label="Status">
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-container-highest text-on-secondary-container capitalize">
-                {(caseData?.status || 'in_review').replace(/_/g, ' ')}
-              </span>
-            </Field>
-            <Field label="Assigned Analyst">
-              <div className="flex items-center gap-2 mt-1">
-                <img alt={currentUser.name} className="w-5 h-5 rounded-full" src={currentUser.avatar} />
-                <span>{currentUser.name}</span>
-              </div>
-            </Field>
-            <Field label="Submitted">{caseData?.createdAt ? new Date(caseData.createdAt).toLocaleDateString() : 'N/A'}</Field>
-          </div>
-        </section>
-        <section className="bg-white rounded-lg border border-outline-variant overflow-hidden h-fit">
-          <SectionHeader>Application Details</SectionHeader>
-          <div className="p-stack-lg space-y-stack-lg">
-            <Field label="Product Type">{productType}</Field>
-            <Field label="Product Variant">{caseData?.product || '—'}</Field>
-            <Field label="Customer Type">
-              <span className="capitalize">{caseData?.customerType || '—'}</span>
-            </Field>
-          </div>
-        </section>
-      </div>
-
-      {/* Customer details */}
-      <div className="space-y-stack-lg">
-        <div className="flex items-center gap-3">
-          <h3 className="text-headline-sm font-headline-sm text-on-surface">Customer Details</h3>
-          <div className="h-px flex-1 bg-outline-variant" />
+    <div className="space-y-6 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-headline-sm font-headline-sm text-on-surface">AI-Extracted Customer Profile</h3>
+          <p className="text-body-md text-on-surface-variant mt-1">
+            Fields extracted from uploaded documents. Review and correct before confirming.
+          </p>
         </div>
-        {isIndividual ? (
-          <>
-            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-              <SectionHeader>Personal Information</SectionHeader>
-              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
-                <Field label="First Name"><span className="font-bold">{fd.firstName || '—'}</span></Field>
-                <Field label="Middle Name">{fd.middleName || '—'}</Field>
-                <Field label="Last Name"><span className="font-bold">{fd.lastName || '—'}</span></Field>
-                <Field label="Gender">{fd.gender || '—'}</Field>
-                <Field label="Date of Birth">{fd.dateOfBirth || '—'}</Field>
-                <Field label="Marital Status">{fd.maritalStatus || '—'}</Field>
-                <Field label="Nationality">{fd.nationality || '—'}</Field>
-                <Field label="Country of Residence">{fd.countryOfResidence || '—'}</Field>
-                <Field label="National ID Number"><span className="text-mono-md font-mono-md">{fd.nationalIdNumber || '—'}</span></Field>
-              </div>
-            </section>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-stack-lg">
-              <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-                <SectionHeader>Contact Information</SectionHeader>
-                <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
-                  <Field label="Mobile Number">{fd.mobileNumber || '—'}</Field>
-                  <Field label="Email Address">{fd.emailAddress || '—'}</Field>
-                </div>
-              </section>
-              <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-                <SectionHeader>Employment Information</SectionHeader>
-                <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
-                  <Field label="Employer Name"><span className="font-bold">{fd.employerName || '—'}</span></Field>
-                  <Field label="Job Title">{fd.jobTitle || '—'}</Field>
-                  <Field label="Employment Status">{fd.employmentStatus || '—'}</Field>
-                </div>
-              </section>
-            </div>
-            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-              <SectionHeader>Address Information</SectionHeader>
-              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-stack-lg">
-                <Field label="Address">{fd.addressLine1 || '—'}</Field>
-                <Field label="City">{fd.city || '—'}</Field>
-                <Field label="Postal Code">{fd.postalCode || '—'}</Field>
-                <Field label="Country">{fd.country || '—'}</Field>
-              </div>
-            </section>
-          </>
-        ) : (
-          <>
-            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-              <SectionHeader>Company Information</SectionHeader>
-              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
-                <Field label="Legal Entity Name"><span className="font-bold">{fd.legalEntityName || '—'}</span></Field>
-                <Field label="Trade Name">{fd.tradeName || '—'}</Field>
-                <Field label="Registration Number"><span className="text-mono-md font-mono-md">{fd.companyRegistrationNumber || '—'}</span></Field>
-                <Field label="Tax ID / VAT">{fd.taxId || '—'}</Field>
-                <Field label="Date of Incorporation">{fd.dateOfIncorporation || '—'}</Field>
-                <Field label="Business Type">{fd.businessType || '—'}</Field>
-                <Field label="Industry">{fd.industryType || '—'}</Field>
-                <Field label="Annual Revenue">{fd.annualRevenue || '—'}</Field>
-                <Field label="Employees">{fd.numberOfEmployees || '—'}</Field>
-              </div>
-            </section>
-            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-              <SectionHeader>Business Address</SectionHeader>
-              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-stack-lg">
-                <Field label="Address">{fd.addressLine1 || '—'}</Field>
-                <Field label="City">{fd.city || '—'}</Field>
-                <Field label="Country">{fd.country || '—'}</Field>
-              </div>
-            </section>
-            <section className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-              <SectionHeader>Authorized Signatory</SectionHeader>
-              <div className="p-stack-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
-                <Field label="Name"><span className="font-bold">{fd.signatoryName || '—'}</span></Field>
-                <Field label="Designation">{fd.designation || '—'}</Field>
-                <Field label="Nationality">{fd.signatoryNationality || '—'}</Field>
-                <Field label="ID / Passport"><span className="text-mono-md font-mono-md">{fd.idPassportNumber || '—'}</span></Field>
-              </div>
-            </section>
-          </>
+        {confirmed && !isDirty && (
+          <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-label-md font-bold">
+            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+            Profile Confirmed
+          </span>
         )}
       </div>
+
+      {/* Conflict banner */}
+      {totalConflicts > 0 && (
+        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <span className="material-symbols-outlined text-amber-600">warning</span>
+          <div>
+            <p className="text-label-md font-bold text-amber-800">{totalConflicts} field{totalConflicts > 1 ? 's' : ''} with conflicting values across documents</p>
+            <p className="text-body-sm text-amber-700">Review highlighted rows and select the correct value before confirming.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Field groups */}
+      {groups.map(grp => {
+        const visibleFields = isIndividual
+          ? grp.fields
+          : grp.fields.filter(f => {
+              if (f.manual) return true
+              const entries = getEntriesForField(agg, f)
+              return entries.length > 0 || !!localProfile[f.key]
+            })
+        if (!isIndividual && visibleFields.length === 0) return null
+        return (
+          <section key={grp.group} className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+            <div className="bg-surface-container-low px-5 py-3 border-b border-outline-variant flex items-center gap-2">
+              <span className="material-symbols-outlined text-secondary text-[18px]">{grp.icon}</span>
+              <span className="text-label-md font-bold text-on-surface-variant uppercase tracking-wider">{grp.group}</span>
+            </div>
+            <div className="divide-y divide-outline-variant">
+              {visibleFields.map(f => {
+                const entries = getEntriesForField(agg, f)
+                const best = entries.length ? bestEntry(entries) : null
+                const conflict = hasConflict(entries) && !resolvedFields.has(f.key)
+                const value = localProfile[f.key] ?? ''
+                const sourceDocType = resolvedSources[f.key] ?? (best?.docType ?? null)
+                const confidence = best?.confidence ?? null
+
+                return (
+                  <div key={f.key} className={`flex items-center gap-4 px-5 py-3 ${conflict ? 'bg-amber-50' : ''}`}>
+                    <span className="text-body-sm text-on-surface-variant w-40 shrink-0">{f.label}</span>
+                    <div className="flex-1">
+                      <input
+                        className={`w-full text-body-md text-on-surface bg-transparent border-b focus:outline-none focus:border-primary transition-colors py-0.5 ${conflict ? 'border-amber-400' : 'border-outline-variant'}`}
+                        value={value}
+                        onChange={e => handleChange(f.key, e.target.value)}
+                      />
+                      {conflict && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {entries.map((e, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleConflictResolve(f.key, e.value, e.docType)}
+                              className={`text-[11px] px-2 py-0.5 rounded border transition-colors ${value === e.value ? 'bg-primary text-on-primary border-primary' : 'bg-white text-on-surface border-outline-variant hover:bg-surface-container-low'}`}
+                            >
+                              {e.value} <span className="opacity-60">({e.docType})</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 w-36 shrink-0">
+                      {!f.manual && <SourceChip docType={sourceDocType} />}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
+
+      {/* Confirm footer */}
+      <div className="flex items-center justify-between pt-2 pb-8">
+        <p className="text-body-sm text-on-surface-variant">
+          {confirmed && !isDirty
+            ? `Confirmed by ${caseData.profileData.confirmedBy} on ${new Date(caseData.profileData.confirmedAt).toLocaleDateString()}`
+            : 'Profile must be confirmed before a decision can be made.'}
+        </p>
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={saving || (saved && !isDirty)}
+          className="px-6 py-2.5 bg-primary text-on-primary text-label-md font-bold rounded hover:bg-primary/90 shadow transition-all active:scale-95 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {saving ? (
+            <>
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Saving...
+            </>
+          ) : saved && !isDirty ? (
+            <>
+              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+              Confirmed
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-[18px]">verified_user</span>
+              {confirmed ? 'Save' : 'Confirm Profile'}
+            </>
+          )}
+        </button>
+      </div>
     </div>
   )
 }
+

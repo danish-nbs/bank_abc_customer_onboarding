@@ -190,7 +190,7 @@ export default function UploadDocumentsPage() {
                 )}
               </div>
               <p className="text-body-lg font-body-lg text-on-surface-variant max-w-2xl">
-                Step 3 of 4: Upload primary identity and supporting documents to initiate a verification workflow.
+                Upload the required documents below. AI will extract and verify the customer profile automatically.
               </p>
             </div>
 

@@ -5,4 +5,5 @@ export const awsConfig = {
   s3BucketName: 'bank-abc-onboarding-documents-074681445364',
   bedrockModelId: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
   classifyDocumentFunctionName: 'bank-abc-onboarding-classify-document',
+  faceMatchFunctionName: 'bank-abc-onboarding-face-match',
 }

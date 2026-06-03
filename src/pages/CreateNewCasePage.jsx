@@ -40,12 +40,15 @@ export default function CreateNewCasePage() {
   const navigate = useNavigate()
   const [customerType, setCustomerType] = useState('individual')
   const [selectedProduct, setSelectedProduct] = useState('')
+  const [selectedVariant, setSelectedVariant] = useState('')
 
   function handleCustomerTypeChange(type) {
     setCustomerType(type)
     setSelectedProduct('')
+    setSelectedVariant('')
   }
-  const [appId] = useState(() => `APP-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`)
+  const [appIdNum] = useState(() => String(Math.floor(Math.random() * 1000000)).padStart(6, '0'))
+  const appId = `APP-${customerType === 'individual' ? 'I' : 'B'}-${appIdNum}`
   const [saving, setSaving] = useState(false)
 
   const variants = PRODUCT_VARIANTS[selectedProduct] ?? DEFAULT_VARIANTS
@@ -59,15 +62,13 @@ export default function CreateNewCasePage() {
           appId,
           customerType,
           product: selectedProduct,
+          productVariant: selectedVariant,
           status: 'draft',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
       }))
-      navigate(
-        customerType === 'individual' ? '/cases/individual' : '/cases/business',
-        { state: { appId, product: selectedProduct } }
-      )
+      navigate('/cases/upload-documents', { state: { appId, product: selectedProduct } })
     } catch (err) {
       console.error('Failed to create case:', err)
       setSaving(false)
@@ -286,6 +287,8 @@ export default function CreateNewCasePage() {
                         <select
                           className="w-full appearance-none bg-surface-container-lowest border border-outline-variant rounded p-3 text-body-md focus:ring-2 focus:ring-secondary focus:border-secondary transition-all outline-none"
                           id="product-variant"
+                          value={selectedVariant}
+                          onChange={(e) => setSelectedVariant(e.target.value)}
                         >
                           <option value="" disabled>Choose variant...</option>
                           {variants.map((v) => (

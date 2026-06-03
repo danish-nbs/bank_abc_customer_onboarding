@@ -126,7 +126,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: lambda:InvokeFunction
-                Resource: !GetAtt ClassifyDocumentFunction.Arn
+                Resource:
+                  - !GetAtt ClassifyDocumentFunction.Arn
+                  - !GetAtt FaceMatchFunction.Arn
 
   # ─────────────────────────────────────────
   # Lambda — Document Classification
@@ -281,6 +283,139 @@ Resources:
               return {'statusCode': 200, 'body': json.dumps({'appId': app_id, 'productType': product, 'expectedTypes': types, 'results': results})}
 
   # ─────────────────────────────────────────
+  # Lambda — Face Match
+  # ─────────────────────────────────────────
+  FaceMatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-face-match-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${DocumentsBucket.Arn}/*'
+        - PolicyName: RekognitionAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: rekognition:CompareFaces
+                Resource: '*'
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt CasesTable.Arn
+
+  FaceMatchFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AppName}-face-match'
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt FaceMatchRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          BUCKET: !Ref DocumentsBucket
+          TABLE: !Ref CasesTable
+          LOG_LEVEL: 'INFO'
+      Code:
+        ZipFile: |
+          import json, os, logging, boto3
+          from datetime import datetime, timezone
+          from decimal import Decimal
+          logger = logging.getLogger()
+          logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
+          rekognition = boto3.client('rekognition')
+          dynamodb = boto3.resource('dynamodb')
+          BUCKET = os.environ['BUCKET']
+          TABLE_NAME = os.environ['TABLE']
+          def _log(event, **kw): logger.info(json.dumps({'event': event, **kw}))
+          def _to_decimal(obj):
+              if isinstance(obj, float): return Decimal(str(obj))
+              if isinstance(obj, dict):  return {k: _to_decimal(v) for k, v in obj.items()}
+              if isinstance(obj, list):  return [_to_decimal(v) for v in obj]
+              return obj
+          def _compare(id_key, selfie_key):
+              try:
+                  resp = rekognition.compare_faces(
+                      SourceImage={'S3Object': {'Bucket': BUCKET, 'Name': id_key}},
+                      TargetImage={'S3Object': {'Bucket': BUCKET, 'Name': selfie_key}},
+                      SimilarityThreshold=0,
+                      QualityFilter='AUTO'
+                  )
+                  source_box = resp.get('SourceImageFace', {}).get('BoundingBox', {})
+                  face_matches = resp.get('FaceMatches', [])
+                  similarity = 0
+                  target_box = {}
+                  if face_matches:
+                      best = max(face_matches, key=lambda m: m['Similarity'])
+                      similarity = round(best['Similarity'], 1)
+                      target_box = best['Face'].get('BoundingBox', {})
+                  status = 'pass' if similarity >= 90 else ('warn' if similarity >= 75 else 'fail')
+                  return {
+                      'similarity': similarity,
+                      'status': status,
+                      'sourceBoundingBox': source_box,
+                      'targetBoundingBox': target_box,
+                      'sourceDocKey': id_key,
+                      'selfieKey': selfie_key,
+                      'checkedAt': datetime.now(timezone.utc).isoformat(),
+                  }
+              except Exception as e:
+                  _log('compare_error', idKey=id_key, error=str(e))
+                  return None
+          def lambda_handler(event, context):
+              app_id = event.get('appId')
+              selfie_key = event.get('selfieKey')
+              passport_key = event.get('passportKey')
+              id_doc_key = event.get('idDocKey')
+              _log('invoked', appId=app_id, hasPassport=bool(passport_key), hasId=bool(id_doc_key))
+              if not app_id or not selfie_key:
+                  return {'statusCode': 400, 'body': json.dumps({'error': 'appId and selfieKey are required'})}
+              if not passport_key and not id_doc_key:
+                  return {'statusCode': 400, 'body': json.dumps({'error': 'At least one of passportKey or idDocKey is required'})}
+              face_match = {}
+              if passport_key:
+                  result = _compare(passport_key, selfie_key)
+                  if result:
+                      face_match['passport'] = result
+              if id_doc_key:
+                  result = _compare(id_doc_key, selfie_key)
+                  if result:
+                      face_match['nationalId'] = result
+              if not face_match:
+                  return {'statusCode': 500, 'body': json.dumps({'error': 'Face comparison failed'})}
+              _log('complete', appId=app_id, keys=list(face_match.keys()),
+                   similarities={k: v['similarity'] for k, v in face_match.items()})
+              response_body = {'appId': app_id, 'faceMatch': face_match}
+              face_match_decimal = _to_decimal(face_match)
+              dynamodb.Table(TABLE_NAME).update_item(
+                  Key={'appId': app_id},
+                  UpdateExpression='SET faceMatch = :fm, updatedAt = :ts',
+                  ExpressionAttributeValues={':fm': face_match_decimal, ':ts': datetime.now(timezone.utc).isoformat()},
+              )
+              return {'statusCode': 200, 'body': json.dumps(response_body)}
+
+  # ─────────────────────────────────────────
   # SSM — Prompts
   # ─────────────────────────────────────────
   ClassifyDocumentPrompt:
@@ -311,12 +446,12 @@ Resources:
         - livenessIndicator: (Selfie only) "pass" if the image appears to be a genuine live photo with natural lighting and background, "warn" if uncertain, "fail" if it appears to be a photo-of-photo or digitally manipulated, "na" for all other document types
 
         Field extraction guide by document type:
-        - Passport: fullName, passportNumber, nationality, dateOfBirth, gender, issueDate, expiryDate, issuingCountry
-        - National ID: fullName, idNumber, dateOfBirth, nationality, expiryDate, gender, address
-        - Utility Bill: customerName, serviceAddress, billDate, accountNumber, utilityProvider
-        - Bank Statement: accountHolderName, accountNumber, iban, bankName, statementStartDate, statementEndDate, closingBalance
-        - Salary Certificate: employeeName, employerName, employeeId, monthlySalary, netSalary, issueDate, jobTitle
-        - Trade License: companyName, tradeLicenseNumber, businessActivity, issueDate, expiryDate, licensingAuthority
+        - Passport: fullName, passportNumber, nationality, dateOfBirth, gender, issueDate, expiryDate, issuingCountry, address
+        - National ID: fullName, idNumber, dateOfBirth, nationality, issueDate, expiryDate, gender, issuingCountry, address
+        - Utility Bill: customerName, customerAddress, billDate, utilityProvider
+        - Bank Statement: accountHolderName, accountNumber, bankName, statementStartDate, statementEndDate, closingBalance, customerAddress
+        - Salary Certificate: employeeName, employerName, monthlySalary, issueDate, jobTitle
+        - Trade License: companyName, tradeLicenseNumber, businessType, issueDate, expiryDate, licensingAuthority
         - Certificate of Incorporation: companyName, registrationNumber, incorporationDate, country
         - MOA: companyName, registrationNumber, authorizedSignatories, issueDate
         - Power of Attorney: principalName, attorneyName, effectiveDate, expiryDate, scope
@@ -379,6 +514,14 @@ Outputs:
   ClassifyDocumentFunctionArn:
     Description: Lambda function ARN for document classification
     Value: !GetAtt ClassifyDocumentFunction.Arn
+
+  FaceMatchFunctionName:
+    Description: Lambda function name for face matching
+    Value: !Ref FaceMatchFunction
+
+  FaceMatchFunctionArn:
+    Description: Lambda function ARN for face matching
+    Value: !GetAtt FaceMatchFunction.Arn
 
   ClassifyDocumentPromptName:
     Description: SSM parameter name for the classification prompt
