@@ -348,17 +348,22 @@ Resources:
           dynamodb = boto3.resource('dynamodb')
           BUCKET = os.environ['BUCKET']
           TABLE_NAME = os.environ['TABLE']
+          FACE_DOC_TYPES = {'National ID', 'Passport', 'Selfie'}
           def _log(event, **kw): logger.info(json.dumps({'event': event, **kw}))
-          def _to_decimal(obj):
-              if isinstance(obj, float): return Decimal(str(obj))
-              if isinstance(obj, dict):  return {k: _to_decimal(v) for k, v in obj.items()}
-              if isinstance(obj, list):  return [_to_decimal(v) for v in obj]
+          def convert_floats(obj):
+              if isinstance(obj, float):
+                  return Decimal(str(obj))
+              elif isinstance(obj, dict):
+                  return {k: convert_floats(v) for k, v in obj.items()}
+              elif isinstance(obj, list):
+                  return [convert_floats(v) for v in obj]
               return obj
-          def _compare(id_key, selfie_key):
+          def _compare(source_key, target_key, source_label, target_label):
+              _log('comparing', sourceKey=source_key, targetKey=target_key)
               try:
                   resp = rekognition.compare_faces(
-                      SourceImage={'S3Object': {'Bucket': BUCKET, 'Name': id_key}},
-                      TargetImage={'S3Object': {'Bucket': BUCKET, 'Name': selfie_key}},
+                      SourceImage={'S3Object': {'Bucket': BUCKET, 'Name': source_key}},
+                      TargetImage={'S3Object': {'Bucket': BUCKET, 'Name': target_key}},
                       SimilarityThreshold=0,
                       QualityFilter='AUTO'
                   )
@@ -371,49 +376,64 @@ Resources:
                       similarity = round(best['Similarity'], 1)
                       target_box = best['Face'].get('BoundingBox', {})
                   status = 'pass' if similarity >= 90 else ('warn' if similarity >= 75 else 'fail')
+                  _log('compare_result', sourceLabel=source_label, targetLabel=target_label, similarity=similarity, status=status)
                   return {
                       'similarity': similarity,
                       'status': status,
+                      'sourceLabel': source_label,
+                      'targetLabel': target_label,
                       'sourceBoundingBox': source_box,
                       'targetBoundingBox': target_box,
-                      'sourceDocKey': id_key,
-                      'selfieKey': selfie_key,
+                      'sourceDocKey': source_key,
+                      'targetDocKey': target_key,
                       'checkedAt': datetime.now(timezone.utc).isoformat(),
                   }
               except Exception as e:
-                  _log('compare_error', idKey=id_key, error=str(e))
+                  _log('compare_error', sourceKey=source_key, targetKey=target_key, error=str(e))
                   return None
           def lambda_handler(event, context):
               app_id = event.get('appId')
-              selfie_key = event.get('selfieKey')
-              passport_key = event.get('passportKey')
-              id_doc_key = event.get('idDocKey')
-              _log('invoked', appId=app_id, hasPassport=bool(passport_key), hasId=bool(id_doc_key))
-              if not app_id or not selfie_key:
-                  return {'statusCode': 400, 'body': json.dumps({'error': 'appId and selfieKey are required'})}
-              if not passport_key and not id_doc_key:
-                  return {'statusCode': 400, 'body': json.dumps({'error': 'At least one of passportKey or idDocKey is required'})}
-              face_match = {}
-              if passport_key:
-                  result = _compare(passport_key, selfie_key)
+              _log('invoked', appId=app_id, requestId=context.aws_request_id)
+              if not app_id:
+                  return {'statusCode': 400, 'body': json.dumps({'error': 'appId is required'})}
+              table = dynamodb.Table(TABLE_NAME)
+              case = table.get_item(Key={'appId': app_id}).get('Item')
+              if not case:
+                  return {'statusCode': 404, 'body': json.dumps({'error': f'Case {app_id} not found'})}
+              face_docs = {}
+              for r in case.get('aiResults', []):
+                  doc_type = r.get('documentType')
+                  if doc_type in FACE_DOC_TYPES and r.get('documentKey'):
+                      face_docs[doc_type] = r['documentKey']
+              _log('face_docs_found', appId=app_id, available=list(face_docs.keys()))
+              if 'Selfie' not in face_docs:
+                  return {'statusCode': 400, 'body': json.dumps({'error': 'No classified Selfie found in case'})}
+              if not any(k in face_docs for k in ('Passport', 'National ID')):
+                  return {'statusCode': 400, 'body': json.dumps({'error': 'No Passport or National ID found in case'})}
+              selfie_key = face_docs['Selfie']
+              comparisons = {}
+              if 'Passport' in face_docs:
+                  result = _compare(face_docs['Passport'], selfie_key, 'Passport', 'Selfie')
                   if result:
-                      face_match['passport'] = result
-              if id_doc_key:
-                  result = _compare(id_doc_key, selfie_key)
+                      comparisons['passportVsSelfie'] = result
+              if 'National ID' in face_docs:
+                  result = _compare(face_docs['National ID'], selfie_key, 'National ID', 'Selfie')
                   if result:
-                      face_match['nationalId'] = result
-              if not face_match:
-                  return {'statusCode': 500, 'body': json.dumps({'error': 'Face comparison failed'})}
-              _log('complete', appId=app_id, keys=list(face_match.keys()),
-                   similarities={k: v['similarity'] for k, v in face_match.items()})
-              response_body = {'appId': app_id, 'faceMatch': face_match}
-              face_match_decimal = _to_decimal(face_match)
-              dynamodb.Table(TABLE_NAME).update_item(
+                      comparisons['nationalIdVsSelfie'] = result
+              if 'Passport' in face_docs and 'National ID' in face_docs:
+                  result = _compare(face_docs['Passport'], face_docs['National ID'], 'Passport', 'National ID')
+                  if result:
+                      comparisons['passportVsNationalId'] = result
+              if not comparisons:
+                  return {'statusCode': 500, 'body': json.dumps({'error': 'All face comparisons failed'})}
+              _log('complete', appId=app_id, comparisons=list(comparisons.keys()),
+                   similarities={k: v['similarity'] for k, v in comparisons.items()})
+              table.update_item(
                   Key={'appId': app_id},
                   UpdateExpression='SET faceMatch = :fm, updatedAt = :ts',
-                  ExpressionAttributeValues={':fm': face_match_decimal, ':ts': datetime.now(timezone.utc).isoformat()},
+                  ExpressionAttributeValues={':fm': convert_floats(comparisons), ':ts': datetime.now(timezone.utc).isoformat()},
               )
-              return {'statusCode': 200, 'body': json.dumps(response_body)}
+              return {'statusCode': 200, 'body': json.dumps({'appId': app_id, 'faceMatch': comparisons})}
 
   # ─────────────────────────────────────────
   # SSM — Prompts

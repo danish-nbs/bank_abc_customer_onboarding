@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bank ABC Onboarding Platform - Audit Log</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      vertical-align: middle;
+    }
+    /* Custom Scrollbar for Analyst precision */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "primary-fixed-dim": "#aec7f6",
+            "on-tertiary-fixed": "#131c27",
+            "outline-variant": "#c4c6cf",
+            "on-secondary-container": "#154985",
+            "on-surface-variant": "#44474e",
+            "surface-variant": "#d3e4fe",
+            "surface-dim": "#cbdbf5",
+            "secondary-container": "#90bafd",
+            "tertiary-container": "#18222d",
+            "on-error-container": "#93000a",
+            "on-tertiary": "#ffffff",
+            "on-error": "#ffffff",
+            "error": "#ba1a1a",
+            "error-container": "#ffdad6",
+            "secondary-fixed": "#d5e3ff",
+            "on-tertiary-fixed-variant": "#3e4853",
+            "inverse-primary": "#aec7f6",
+            "primary": "#000a1e",
+            "outline": "#74777f",
+            "inverse-on-surface": "#eaf1ff",
+            "primary-container": "#002147",
+            "surface-bright": "#f8f9ff",
+            "tertiary": "#030b15",
+            "on-primary-fixed-variant": "#2d476f",
+            "on-primary-container": "#708ab5",
+            "on-primary": "#ffffff",
+            "surface": "#f8f9ff",
+            "tertiary-fixed-dim": "#bdc7d6",
+            "surface-container-lowest": "#ffffff",
+            "secondary": "#325f9c",
+            "on-secondary-fixed-variant": "#114783",
+            "tertiary-fixed": "#d9e3f2",
+            "surface-container-high": "#dce9ff",
+            "inverse-surface": "#213145",
+            "surface-tint": "#465f88",
+            "surface-container-highest": "#d3e4fe",
+            "on-background": "#0b1c30",
+            "on-secondary-fixed": "#001b3c",
+            "surface-container": "#e5eeff",
+            "on-tertiary-container": "#7f8997",
+            "on-primary-fixed": "#001b3d",
+            "background": "#f8f9ff",
+            "secondary-fixed-dim": "#a7c8ff",
+            "primary-fixed": "#d6e3ff",
+            "on-secondary": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "on-surface": "#0b1c30"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "stack-md": "16px",
+            "gutter": "24px",
+            "margin-desktop": "32px",
+            "stack-lg": "24px",
+            "unit": "4px",
+            "stack-sm": "8px",
+            "margin-mobile": "16px",
+            "container-max": "1440px"
+          },
+          "fontFamily": {
+            "body-md": ["Inter"],
+            "body-lg": ["Inter"],
+            "label-md": ["Inter"],
+            "headline-sm": ["Inter"],
+            "display-lg": ["Inter"],
+            "mono-md": ["JetBrains Mono"],
+            "headline-md": ["Inter"],
+            "body-sm": ["Inter"]
+          },
+          "fontSize": {
+            "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+            "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+            "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+            "mono-md": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}]
+          }
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen">
+<!-- Side Navigation Bar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-stack-lg px-unit bg-surface-container-low border-r border-outline-variant z-50 w-64">
+<div class="px-gutter mb-stack-lg flex items-center gap-stack-sm">
+<div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-icon="account_balance">account_balance</span>
+</div>
+<h1 class="text-headline-sm font-headline-md text-primary">Case Manager</h1>
+</div>
+<nav class="flex-1 px-unit space-y-1">
+<a class="flex items-center gap-stack-sm px-gutter py-stack-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all duration-150 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-active:scale-95" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-stack-sm px-gutter py-stack-sm bg-secondary-container text-on-secondary-container rounded-lg font-bold active:scale-95 duration-150 group" href="#">
+<span class="material-symbols-outlined" data-icon="folder_shared">folder_shared</span>
+<span class="font-label-md text-label-md">Cases</span>
+</a>
+<a class="flex items-center gap-stack-sm px-gutter py-stack-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all duration-150 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-active:scale-95" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Clients</span>
+</a>
+<a class="flex items-center gap-stack-sm px-gutter py-stack-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all duration-150 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-active:scale-95" data-icon="analytics">analytics</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</a>
+<a class="flex items-center gap-stack-sm px-gutter py-stack-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all duration-150 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-active:scale-95" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+<div class="mt-auto px-unit pt-stack-lg border-t border-outline-variant space-y-1">
+<div class="px-gutter py-stack-sm flex items-center gap-stack-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-primary-container font-bold text-label-md">JD</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Analyst Profile</span>
+<span class="text-[10px] text-on-surface-variant uppercase tracking-wider">Onboarding Team</span>
+</div>
+</div>
+<a class="flex items-center gap-stack-sm px-gutter py-stack-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="contact_support">contact_support</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="flex items-center gap-stack-sm px-gutter py-stack-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-lg group text-error" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-md text-label-md">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Top Navigation Bar -->
+<header class="fixed left-64 right-0 top-0 h-16 bg-surface border-b border-outline-variant z-40 flex justify-between items-center px-margin-desktop py-unit">
+<div class="flex items-center gap-stack-md">
+<h2 class="text-headline-sm font-headline-md text-primary">Bank ABC Onboarding Platform</h2>
+<nav class="flex items-center ml-gutter gap-stack-lg">
+<a class="text-on-surface-variant font-medium hover:bg-surface-container-high transition-colors px-unit py-unit" href="#">Overview</a>
+<a class="text-on-surface-variant font-medium hover:bg-surface-container-high transition-colors px-unit py-unit" href="#">Documents</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1 px-unit py-unit" href="#">Audit Trail</a>
+<a class="text-on-surface-variant font-medium hover:bg-surface-container-high transition-colors px-unit py-unit" href="#">Risk Analysis</a>
+</nav>
+</div>
+<div class="flex items-center gap-stack-md">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-1 focus:ring-secondary w-64" placeholder="Search case data..." type="text"/>
+</div>
+<button class="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-64 pt-16 min-h-screen">
+<div class="p-margin-desktop max-w-container-max mx-auto">
+<!-- Case Header Brief -->
+<div class="mb-gutter flex justify-between items-end">
+<div>
+<div class="flex items-center gap-stack-sm mb-unit">
+<span class="text-label-md font-label-md text-on-surface-variant">CASE ID: #883-KYC-2024</span>
+<span class="bg-secondary-container/20 text-on-secondary-container text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter">In Progress</span>
+</div>
+<h1 class="text-display-lg font-display-lg text-primary">Global Tech Solutions Inc.</h1>
+<p class="text-body-md text-on-surface-variant">Business Entity Onboarding • Tier 1 Enhanced Due Diligence</p>
+</div>
+<div class="flex gap-stack-sm">
+<button class="px-gutter py-2 rounded-lg border border-outline text-primary font-bold hover:bg-surface-container-high transition-all active:scale-95">
+            Export Log
+          </button>
+<button class="px-gutter py-2 rounded-lg bg-primary-container text-on-primary-container font-bold hover:bg-primary transition-all active:scale-95 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="add_comment">add_comment</span>
+            Add Manual Entry
+          </button>
+</div>
+</div>
+<!-- Audit Section -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm">
+<!-- Controls Header -->
+<div class="p-stack-lg border-b border-outline-variant bg-surface-container-low flex flex-wrap justify-between items-center gap-gutter">
+<div class="flex items-center gap-stack-md">
+<div class="flex p-unit bg-surface-container-high rounded-lg">
+<button class="px-stack-lg py-1.5 rounded-lg bg-surface-container-lowest text-primary shadow-sm font-bold text-label-md transition-all">All Actions</button>
+<button class="px-stack-lg py-1.5 rounded-lg text-on-surface-variant font-medium text-label-md hover:text-primary transition-all">System Actions</button>
+<button class="px-stack-lg py-1.5 rounded-lg text-on-surface-variant font-medium text-label-md hover:text-primary transition-all">User Actions</button>
+</div>
+<div class="h-8 w-[1px] bg-outline-variant"></div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]" data-icon="filter_list">filter_list</span>
+<select class="pl-9 pr-8 py-1.5 bg-transparent border-none text-label-md font-label-md focus:ring-0 cursor-pointer">
+<option>Newest First</option>
+<option>Oldest First</option>
+</select>
+</div>
+</div>
+<div class="relative w-full max-w-xs">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary transition-all" placeholder="Search event description..." type="text"/>
+</div>
+</div>
+<!-- Timeline Container -->
+<div class="p-margin-desktop relative">
+<!-- Central Timeline Line -->
+<div class="absolute left-[47px] top-10 bottom-10 w-[2px] bg-outline-variant opacity-30"></div>
+<div class="space-y-stack-lg">
+<!-- Timeline Item 1 -->
+<div class="relative flex gap-gutter items-start group">
+<div class="z-10 w-[30px] h-[30px] rounded-full bg-secondary-container flex items-center justify-center ring-4 ring-surface-container-lowest transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-[16px] text-on-secondary-container" data-icon="smart_toy" data-weight="fill" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="flex-1 pb-stack-lg border-b border-outline-variant/30 last:border-0">
+<div class="flex justify-between items-start mb-unit">
+<div>
+<span class="text-label-md font-label-md text-primary uppercase tracking-wider block mb-0.5">Risk Score Updated</span>
+<h3 class="text-body-lg font-bold text-on-surface">System automated risk reassessment</h3>
+</div>
+<div class="text-right">
+<span class="text-mono-md font-mono-md text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded">Oct 24, 2024 • 14:32:11</span>
+</div>
+</div>
+<p class="text-body-md text-on-surface-variant max-w-2xl">
+                  Case risk profile updated from <span class="text-error font-semibold">High</span> to <span class="text-secondary font-semibold">Medium</span> following successful verification of Ultimate Beneficial Ownership (UBO) structures through Bureau van Dijk integration.
+                </p>
+<div class="mt-stack-sm flex items-center gap-2">
+<span class="text-[10px] bg-secondary-container/10 text-on-secondary-container px-1.5 py-0.5 rounded border border-secondary-container/30 uppercase font-bold">Auto-Generated</span>
+<span class="text-[10px] bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded uppercase font-bold">Trace ID: 992-AXQ</span>
+</div>
+</div>
+</div>
+<!-- Timeline Item 2 -->
+<div class="relative flex gap-gutter items-start group">
+<div class="z-10 w-[30px] h-[30px] rounded-full bg-primary-container flex items-center justify-center ring-4 ring-surface-container-lowest transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-[16px] text-on-primary-container" data-icon="person">person</span>
+</div>
+<div class="flex-1 pb-stack-lg border-b border-outline-variant/30">
+<div class="flex justify-between items-start mb-unit">
+<div>
+<span class="text-label-md font-label-md text-primary uppercase tracking-wider block mb-0.5">Document Approved</span>
+<h3 class="text-body-lg font-bold text-on-surface">John Doe (Senior Analyst)</h3>
+</div>
+<div class="text-right">
+<span class="text-mono-md font-mono-md text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded">Oct 24, 2024 • 11:05:45</span>
+</div>
+</div>
+<p class="text-body-md text-on-surface-variant max-w-2xl">
+                  Manually reviewed and approved 'Certificate of Incorporation'. Visual verification of holographic seal and registrar signature completed. Document matches registry metadata.
+                </p>
+<div class="mt-stack-sm flex gap-stack-sm">
+<div class="flex items-center gap-1.5 bg-surface-container-high/50 p-1.5 rounded-lg border border-outline-variant max-w-fit pr-3">
+<img class="w-6 h-6 rounded object-cover" data-alt="A professional document preview icon showing a business certificate with official stamps and signatures in a clean, minimalist layout. The style is modern and corporate with a focus on security and verification." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAW2-a1jmPa_adIqPBKzQF97n4EcbjeIhR7J4G3CdBGWfZ7D_sWvqyN8BbWHzbWKSwnUmoIEjhyYPA1hmwiDbWhHHeuMoh5jwlqJ_BD2MDq_dRavvCr6wMV_5yl1CS-UEPP-m0jREy-poqqRSdO05F4iqTlvVoiU7fqnPp7JJhjDTeXehuTJUAiqr9I6oKr0ZYQv8kXA5Wx6i-gxq3O_1dYcdNVDFx0PGnanYUaTapC0HxkR8L-zcSRhy0_oS6XMiMtFA5J9Zh3kko"/>
+<span class="text-body-sm font-medium">cert_incorp_2024.pdf</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Timeline Item 3 -->
+<div class="relative flex gap-gutter items-start group">
+<div class="z-10 w-[30px] h-[30px] rounded-full bg-tertiary-fixed-dim flex items-center justify-center ring-4 ring-surface-container-lowest transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-[16px] text-on-tertiary-fixed" data-icon="gavel">gavel</span>
+</div>
+<div class="flex-1 pb-stack-lg border-b border-outline-variant/30">
+<div class="flex justify-between items-start mb-unit">
+<div>
+<span class="text-label-md font-label-md text-primary uppercase tracking-wider block mb-0.5">AML Check Completed</span>
+<h3 class="text-body-lg font-bold text-on-surface">Screening Engine Alpha</h3>
+</div>
+<div class="text-right">
+<span class="text-mono-md font-mono-md text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded">Oct 23, 2024 • 09:15:00</span>
+</div>
+</div>
+<p class="text-body-md text-on-surface-variant max-w-2xl">
+                  Batch screening against UN Sanctions list, OFAC, and local PEP databases. 0 High Match alerts found. 2 Low Match alerts cleared via automated fuzzy logic thresholds.
+                </p>
+</div>
+</div>
+<!-- Timeline Item 4 -->
+<div class="relative flex gap-gutter items-start group">
+<div class="z-10 w-[30px] h-[30px] rounded-full bg-secondary-container flex items-center justify-center ring-4 ring-surface-container-lowest transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-[16px] text-on-secondary-container" data-icon="cloud_upload" data-weight="fill" style="font-variation-settings: 'FILL' 1;">cloud_upload</span>
+</div>
+<div class="flex-1 pb-stack-lg border-b border-outline-variant/30">
+<div class="flex justify-between items-start mb-unit">
+<div>
+<span class="text-label-md font-label-md text-primary uppercase tracking-wider block mb-0.5">Document Uploaded</span>
+<h3 class="text-body-lg font-bold text-on-surface">Client Portal Auto-Ingest</h3>
+</div>
+<div class="text-right">
+<span class="text-mono-md font-mono-md text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded">Oct 22, 2024 • 16:44:12</span>
+</div>
+</div>
+<p class="text-body-md text-on-surface-variant max-w-2xl">
+                  New document package received via secure client portal. Files scanned for malware and indexed into case repository.
+                </p>
+<div class="mt-stack-sm flex items-center gap-stack-md">
+<span class="text-label-md text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="attachment">attachment</span>
+                     4 Files Received
+                   </span>
+</div>
+</div>
+</div>
+<!-- Timeline Item 5 - Case Opened -->
+<div class="relative flex gap-gutter items-start group">
+<div class="z-10 w-[30px] h-[30px] rounded-full bg-primary flex items-center justify-center ring-4 ring-surface-container-lowest transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-[16px] text-white" data-icon="fiber_new">fiber_new</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-unit">
+<div>
+<span class="text-label-md font-label-md text-primary uppercase tracking-wider block mb-0.5">Case Initialized</span>
+<h3 class="text-body-lg font-bold text-on-surface">Salesforce CRM Integration</h3>
+</div>
+<div class="text-right">
+<span class="text-mono-md font-mono-md text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded">Oct 22, 2024 • 08:00:00</span>
+</div>
+</div>
+<p class="text-body-md text-on-surface-variant max-w-2xl">
+                  Onboarding workflow triggered by contract signature. Case owner assigned to "EMEA Onboarding Team 4". Default risk parameters set for Commercial Entity.
+                </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Stats -->
+<div class="bg-surface-container px-margin-desktop py-stack-md border-t border-outline-variant flex justify-between items-center">
+<div class="flex gap-gutter">
+<div class="flex flex-col">
+<span class="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">Total Events</span>
+<span class="text-body-lg font-bold text-primary">142</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">System Tasks</span>
+<span class="text-body-lg font-bold text-primary">128</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">Analyst Reviews</span>
+<span class="text-body-lg font-bold text-primary">14</span>
+</div>
+</div>
+<div class="flex items-center gap-stack-sm">
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<span class="text-label-md font-label-md text-on-surface">Page 1 of 6</span>
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Contextual Action Note -->
+<div class="mt-gutter p-stack-lg bg-surface-container-high rounded-lg border-l-4 border-secondary flex items-start gap-stack-md">
+<span class="material-symbols-outlined text-secondary" data-icon="info">info</span>
+<div>
+<h4 class="text-body-md font-bold text-primary">Compliance Requirement</h4>
+<p class="text-body-sm text-on-surface-variant">The audit trail is immutable. All entries are cryptographically signed and archived for 7 years as per AMLD5 regulations. Manual entries are attributed to your professional ID.</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button - Only for contextually relevant screens -->
+<!-- Suppressed on Details/Audit screen per Shared Components Logic -->
+<script>
+    // Simple micro-interaction for filter tabs
+    document.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', function() {
+        if(this.parentElement.classList.contains('bg-surface-container-high')) {
+          this.parentElement.querySelectorAll('button').forEach(b => {
+            b.classList.remove('bg-surface-container-lowest', 'text-primary', 'shadow-sm', 'font-bold');
+            b.classList.add('text-on-surface-variant', 'font-medium');
+          });
+          this.classList.add('bg-surface-container-lowest', 'text-primary', 'shadow-sm', 'font-bold');
+          this.classList.remove('text-on-surface-variant', 'font-medium');
+        }
+      });
+    });
+  </script>
+</body></html>

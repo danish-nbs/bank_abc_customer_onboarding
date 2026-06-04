@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { InvokeCommand } from '@aws-sdk/client-lambda'
 import { dynamoClient, s3Client, lambdaClient } from '../lib/awsClients'
 import { awsConfig } from '../aws-config'
 import { currentUser } from '../data/mockData'
+import AppLayout from '../components/AppLayout'
+import { logActivity } from '../lib/activityLogger'
 
-const TABS = ['Profile', 'Documents', 'Identity & Fraud', 'AML', 'Risk', 'Activity', 'Notes', 'Audit', 'Decisions']
+const TABS = ['Profile', 'Documents', 'Analysis', 'Activity']
 
 const DOC_HIERARCHY = ['Passport', 'National ID', 'Trade License', 'Certificate of Incorporation', 'Power of Attorney', 'Salary Certificate', 'Utility Bill', 'Bank Statement', 'MOA']
 
@@ -114,6 +116,7 @@ export default function CaseDetailsPage() {
   const [caseData, setCaseData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [statusUpdating, setStatusUpdating] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -145,8 +148,33 @@ export default function CaseDetailsPage() {
   const productVariant = caseData?.productVariant || ''
   const statusLabel = (caseData?.status || 'in_review').replace(/_/g, ' ')
 
+  async function handleUpdateStatus(newStatus) {
+    setStatusUpdating(true)
+    try {
+      await dynamoClient.send(new UpdateCommand({
+        TableName: awsConfig.dynamoTableName,
+        Key: { appId },
+        UpdateExpression: 'SET #s = :s, updatedAt = :ts',
+        ExpressionAttributeNames: { '#s': 'status' },
+        ExpressionAttributeValues: { ':s': newStatus, ':ts': new Date().toISOString() },
+      }))
+      setCaseData(prev => ({ ...prev, status: newStatus }))
+      logActivity(appId, {
+        type: 'user',
+        category: 'Status Updated',
+        actor: currentUser.name,
+        description: `Case status updated to "${newStatus}" by ${currentUser.name}.`,
+      })
+      navigate('/cases')
+    } catch (err) {
+      console.error('Failed to update status:', err)
+    } finally {
+      setStatusUpdating(false)
+    }
+  }
+
   return (
-    <div className="font-body-md text-body-md text-on-surface overflow-hidden h-screen flex">
+    <AppLayout contentClassName="ml-64 pt-16 flex flex-col h-screen overflow-hidden font-body-md text-body-md text-on-surface">
       <style>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -159,78 +187,8 @@ export default function CaseDetailsPage() {
         }
       `}</style>
 
-      {/* Sidebar */}
-      <aside className="flex flex-col h-screen py-stack-lg px-unit bg-surface-container-low border-r border-outline-variant w-64 shrink-0">
-        <div className="px-stack-md mb-stack-lg">
-          <h1 className="text-headline-sm font-headline-sm text-primary">Case Manager</h1>
-          <p className="text-label-md font-label-md text-on-surface-variant">Onboarding Team</p>
-        </div>
-        <nav className="flex-1 space-y-1 px-unit">
-          <Link to="/dashboard" className="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-all">
-            <span className="material-symbols-outlined">dashboard</span>
-            <span className="text-label-md font-label-md">Dashboard</span>
-          </Link>
-          <a className="flex items-center gap-3 px-stack-md py-stack-sm bg-secondary-container text-on-secondary-container rounded-lg font-bold transition-all" href="#">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>folder_shared</span>
-            <span className="text-label-md font-label-md">Cases</span>
-          </a>
-          <a className="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-all" href="#">
-            <span className="material-symbols-outlined">group</span>
-            <span className="text-label-md font-label-md">Clients</span>
-          </a>
-          <a className="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-all" href="#">
-            <span className="material-symbols-outlined">analytics</span>
-            <span className="text-label-md font-label-md">Analytics</span>
-          </a>
-          <a className="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-all" href="#">
-            <span className="material-symbols-outlined">settings</span>
-            <span className="text-label-md font-label-md">Settings</span>
-          </a>
-        </nav>
-        <div className="mt-auto border-t border-outline-variant pt-stack-md px-unit space-y-1">
-          <a className="flex items-center gap-3 px-stack-md py-stack-sm text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-all" href="#">
-            <span className="material-symbols-outlined">contact_support</span>
-            <span className="text-label-md font-label-md">Support</span>
-          </a>
-          <div className="flex items-center gap-3 px-stack-md py-stack-sm bg-surface-container-lowest rounded-xl border border-outline-variant">
-            <img alt={currentUser.name} className="w-10 h-10 rounded-full object-cover" src={currentUser.avatar} />
-            <div className="overflow-hidden flex-1">
-              <p className="text-body-sm font-bold text-on-surface truncate">{currentUser.name}</p>
-              <p className="text-xs text-on-surface-variant">{currentUser.role}</p>
-            </div>
-            <button className="ml-auto material-symbols-outlined text-on-surface-variant" type="button">logout</button>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main viewport */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-
-        {/* Top header */}
-        <header className="flex justify-between items-center w-full px-margin-desktop py-unit bg-surface border-b border-outline-variant shrink-0">
-          <div className="flex items-center gap-8">
-            <span className="text-headline-sm font-headline-sm text-primary">Bank ABC Onboarding Platform</span>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
-              <input className="pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-md w-72 focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" placeholder="Search case ID or entity..." type="text" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="p-2 text-primary hover:bg-surface-container-high transition-colors rounded-full" type="button">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
-            <button className="p-2 text-primary hover:bg-surface-container-high transition-colors rounded-full" type="button">
-              <span className="material-symbols-outlined">help</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Page header */}
+      {/* Page header */}
         <div className="px-margin-desktop pt-8 pb-4 bg-background shrink-0">
-          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-secondary text-label-md font-label-md hover:underline mb-4" type="button">
-            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-            Back to Case Queue
-          </button>
           <div className="flex justify-between items-end">
             <div>
               <div className="flex items-center gap-3 mb-1">
@@ -242,10 +200,8 @@ export default function CaseDetailsPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <button className="px-4 py-[10px] border border-outline rounded-lg text-label-md font-bold hover:bg-surface-container-high transition-colors" type="button">Escalate</button>
-              <button className="px-4 py-[10px] border border-outline rounded-lg text-label-md font-bold hover:bg-surface-container-high transition-colors" type="button">Request Documents</button>
-              <button className="px-4 py-[10px] bg-error-container text-on-error-container rounded-lg text-label-md font-bold hover:opacity-90 transition-opacity" type="button">Reject</button>
-              <button className="px-4 py-[10px] bg-primary text-on-primary rounded-lg text-label-md font-bold hover:shadow-lg transition-all" type="button">Approve Case</button>
+              <button onClick={() => handleUpdateStatus('rejected')} disabled={statusUpdating} className="px-4 py-[10px] bg-error-container text-on-error-container rounded-lg text-label-md font-bold hover:opacity-90 transition-opacity disabled:opacity-50" type="button">Reject</button>
+              <button onClick={() => handleUpdateStatus('approved')} disabled={statusUpdating} className="px-4 py-[10px] bg-primary text-on-primary rounded-lg text-label-md font-bold hover:shadow-lg transition-all disabled:opacity-50" type="button">Approve Case</button>
             </div>
           </div>
         </div>
@@ -285,7 +241,7 @@ export default function CaseDetailsPage() {
           <div className="flex-1 overflow-hidden bg-surface">
             {loading
               ? <div className="text-body-md text-on-surface-variant text-center py-16">Loading case data...</div>
-              : <DocumentsTab caseData={caseData} onRefresh={() => { setLoading(true); setRefreshKey(k => k + 1) }} />
+              : <DocumentsTab caseData={caseData} onRefresh={() => { setLoading(true); setRefreshKey(k => k + 1) }} onAiResultsUpdate={next => setCaseData(prev => ({ ...prev, aiResults: next }))} />
             }
           </div>
         )}
@@ -303,13 +259,12 @@ export default function CaseDetailsPage() {
           <main className="flex-1 overflow-y-auto p-margin-desktop bg-background main-scroll">
             {loading
               ? <div className="text-body-md text-on-surface-variant text-center py-12">Loading case data...</div>
-              : <AMLTab caseData={caseData} />
+              : <ActivityTab appId={appId} />
             }
           </main>
         )}
 
-      </div>
-    </div>
+    </AppLayout>
   )
 }
 
@@ -329,7 +284,7 @@ function matchesRequired(docType, requiredLabel) {
   return docType === requiredLabel
 }
 
-function DocumentsTab({ caseData, onRefresh }) {
+function DocumentsTab({ caseData, onRefresh, onAiResultsUpdate }) {
   const product = caseData?.product ?? ''
   const uploadedDocs = caseData?.documents ?? []
   const [aiResults, setAiResults] = useState(caseData?.aiResults ?? [])
@@ -413,6 +368,7 @@ function DocumentsTab({ caseData, onRefresh }) {
     setAiResults(prev => {
       const next = [...prev]
       next[docIndex] = { ...prev[docIndex], ...updatedResult }
+      onAiResultsUpdate?.(next)
       return next
     })
   }
@@ -650,6 +606,31 @@ function computeCrossChecks(detectedType, fields, allAiResults) {
   return checks.filter(c => c.status !== 'na')
 }
 
+const DATE_FIELD_KEYS = new Set([
+  'dateOfBirth', 'issueDate', 'expiryDate', 'incorporationDate',
+  'billDate', 'statementStartDate', 'statementEndDate', 'effectiveDate',
+])
+
+function toMMDDYYYY(val) {
+  if (!val) return val
+  const s = String(val).trim()
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  const ymd = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/)
+  if (ymd) return `${ymd[2].padStart(2,'0')}/${ymd[3].padStart(2,'0')}/${ymd[1]}`
+
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  // When first segment > 12 it must be a day; otherwise assume day-first (international docs)
+  const dmy = s.match(/^(\d{1,2})[-\/\.](\d{1,2})[-\/\.](\d{4})$/)
+  if (dmy) return `${dmy[2].padStart(2,'0')}/${dmy[1].padStart(2,'0')}/${dmy[3]}`
+
+  // Natural-language formats: "31 Dec 2025", "December 31, 2025", "31st December 2025", etc.
+  const d = new Date(s)
+  if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+
+  return val
+}
+
 // ─── Document Review Panel ────────────────────────────────────────────────────
 
 function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOptions, appId, onSave }) {
@@ -665,7 +646,8 @@ function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOption
     const raw = aiResult?.extractedFields ?? {}
     const result = {}
     for (const [k, v] of Object.entries(raw)) {
-      result[k] = typeof v === 'object' && v !== null ? (v.value ?? '') : v
+      const rawVal = typeof v === 'object' && v !== null ? (v.value ?? '') : v
+      result[k] = DATE_FIELD_KEYS.has(k) ? toMMDDYYYY(rawVal) : rawVal
     }
     return result
   })
@@ -708,10 +690,25 @@ function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOption
     try {
       const updated = [...(allAiResults ?? [])]
       while (updated.length <= docIndex) updated.push({})
+
+      // Recompute notExpired from the edited expiryDate so the quality check
+      // stays in sync with the field value rather than the original AI result.
+      const existingQC = updated[docIndex]?.qualityChecks ?? {}
+      let qualityChecks = { ...existingQC }
+      if ('expiryDate' in fields) {
+        const expiry = fields.expiryDate
+        if (expiry) {
+          qualityChecks = { ...qualityChecks, notExpired: new Date(expiry) > new Date() ? 'pass' : 'fail' }
+        } else {
+          qualityChecks = { ...qualityChecks, notExpired: 'na' }
+        }
+      }
+
       updated[docIndex] = {
         ...updated[docIndex],
         documentType: detectedType,
         extractedFields: fields,
+        qualityChecks,
         verificationStatus: status,
       }
       await dynamoClient.send(new UpdateCommand({
@@ -724,7 +721,13 @@ function DocumentReviewPanel({ doc, aiResult, allAiResults, docIndex, typeOption
         },
       }))
       setIsDirty(false)
-      onSave?.(docIndex, { documentType: detectedType, extractedFields: fields, verificationStatus: status })
+      onSave?.(docIndex, { documentType: detectedType, extractedFields: fields, qualityChecks, verificationStatus: status })
+      logActivity(appId, {
+        type: 'user',
+        category: 'Document Reviewed',
+        actor: currentUser.name,
+        description: `"${detectedType}" document reviewed — status set to "${status}".`,
+      })
     } catch (err) {
       console.error('Failed to save document:', err)
       setSaveError('Save failed. Please try again.')
@@ -962,7 +965,7 @@ const SANCTIONS_LISTS = ['OFAC', 'UN Sanctions', 'EU Sanctions', 'Internal Watch
 const MEDIA_SOURCES = ['News Screening', 'Litigation Screening', 'Financial Crimes Mentions']
 const LOW_RISK_COUNTRIES = ['united kingdom', 'uk', 'united states', 'usa', 'us', 'germany', 'france', 'australia', 'canada', 'united arab emirates', 'uae', 'singapore', 'japan', 'new zealand', 'switzerland']
 
-function AMLTab({ caseData }) {
+function computeAMLData(caseData) {
   const appId = caseData?.appId ?? ''
   const pd = caseData?.profileData ?? {}
 
@@ -996,38 +999,38 @@ function AMLTab({ caseData }) {
     : 'MEDIUM'
 
   const jurisdictionFactors = [
-    { label: nationality ? `Nationality (${nationality})` : 'Nationality',        risk: countryRisk(nationality) },
-    { label: employment  ? `Source of Funds (${employment})`  : 'Source of Funds', risk: employmentRisk },
+    { label: nationality ? `Nationality (${nationality})` : 'Nationality',         risk: countryRisk(nationality) },
+    { label: employment  ? `Source of Funds (${employment})` : 'Source of Funds',  risk: employmentRisk },
     { label: country     ? `Country of Residence (${country})` : 'Country of Residence', risk: countryRisk(country) },
   ]
 
   const anySanctionHit = sanctions.some(s => s.result === 'hit')
-  const anyMediaFlag = media.some(m => m.result === 'flag')
-  const riskProfile = anySanctionHit || pepHit ? 'Elevated' : anyMediaFlag ? 'Moderate' : 'Low'
-  const showAlert = anySanctionHit || pepHit
+  const anyMediaFlag   = media.some(m => m.result === 'flag')
+  const riskProfile    = anySanctionHit || pepHit ? 'Elevated' : anyMediaFlag ? 'Moderate' : 'Low'
+  const showAlert      = anySanctionHit || pepHit
 
-  const hitSources = sanctions.filter(s => s.result === 'hit').map(s => s.source)
+  const hitSources   = sanctions.filter(s => s.result === 'hit').map(s => s.source)
   const alertHeading = pepHit && anySanctionHit
-    ? `Potential PEP and Sanctions match detected`
-    : pepHit
-    ? 'Potential PEP match detected'
-    : anySanctionHit
-    ? `Potential Sanctions match on ${hitSources.join(', ')}`
+    ? 'Potential PEP and Sanctions match detected'
+    : pepHit        ? 'Potential PEP match detected'
+    : anySanctionHit ? `Potential Sanctions match on ${hitSources.join(', ')}`
     : 'No matches found across all lists'
   const alertSubtext = pepHit
     ? 'PEP match requires additional due diligence. Adverse Media cleared.'
-    : anySanctionHit
-    ? 'PEP and Adverse Media cleared for this entity.'
+    : anySanctionHit ? 'PEP and Adverse Media cleared for this entity.'
     : 'All sanctions, PEP, and adverse media checks returned no matches.'
 
-  const riskCls = riskProfile === 'Elevated' ? 'text-error' : riskProfile === 'Moderate' ? 'text-amber-600' : 'text-green-600'
-
+  const riskCls   = riskProfile === 'Elevated' ? 'text-error' : riskProfile === 'Moderate' ? 'text-amber-600' : 'text-green-600'
   const checkedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  return { sanctions, pepHit, pepConfidence, media, jurisdictionFactors, anySanctionHit, anyMediaFlag, riskProfile, showAlert, alertHeading, alertSubtext, riskCls, checkedAt }
+}
+
+function AMLTab({ caseData }) {
+  const { showAlert, alertHeading, alertSubtext, riskProfile, riskCls } = computeAMLData(caseData)
 
   return (
     <div className="space-y-6">
-
-      {/* Status banner */}
       <div className="bg-surface-container-low rounded border border-outline-variant p-stack-lg">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-stack-md">
           <div className="flex items-center gap-stack-md">
@@ -1046,128 +1049,11 @@ function AMLTab({ caseData }) {
           </div>
         </div>
       </div>
-
-      {/* 2-col grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-        {/* Sanctions Screening */}
-        <div className="bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
-          <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
-            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Sanctions Screening</h2>
-          </div>
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-surface-bright border-b border-outline-variant">
-              <tr>
-                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Source</th>
-                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Result</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant">
-              {sanctions.map(({ source, result }) => (
-                <tr key={source} className="hover:bg-surface-container-low">
-                  <td className="px-stack-lg py-stack-md font-medium text-body-md">{source}</td>
-                  <td className="px-stack-lg py-stack-md text-right">
-                    {result === 'hit'
-                      ? <span className="text-error font-bold">POTENTIAL HIT</span>
-                      : <span className="text-green-600 font-bold">NO MATCH</span>
-                    }
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* PEP + Jurisdiction */}
-        <div className="space-y-6">
-
-          {/* PEP Screening */}
-          <div className="bg-white rounded border border-outline-variant p-stack-lg">
-            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">PEP Screening</h2>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-stack-md">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${pepHit ? 'bg-error-container' : 'bg-green-100'}`}>
-                  <span className={`material-symbols-outlined ${pepHit ? 'text-error' : 'text-green-600'}`}
-                    style={pepHit ? {} : { fontVariationSettings: '"FILL" 1' }}>
-                    {pepHit ? 'gpp_maybe' : 'person_check'}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-body-md font-bold text-on-surface">Politically Exposed Person</p>
-                  <p className={`text-label-md font-bold uppercase ${pepHit ? 'text-error' : 'text-green-600'}`}>
-                    {pepHit ? 'Potential Match' : 'No Match Detected'}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-label-md text-on-surface-variant">Confidence</p>
-                <p className="text-headline-sm font-bold text-primary">{pepConfidence}%</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Jurisdiction Assessment */}
-          <div className="bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
-            <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
-              <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Jurisdiction Assessment</h2>
-            </div>
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-surface-bright border-b border-outline-variant">
-                <tr>
-                  <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Factor</th>
-                  <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Risk Level</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant">
-                {jurisdictionFactors.map(({ label, risk }) => (
-                  <tr key={label} className="hover:bg-surface-container-low">
-                    <td className="px-stack-lg py-stack-md font-medium text-body-md">{label}</td>
-                    <td className={`px-stack-lg py-stack-md text-right font-bold ${
-                      risk === 'HIGH' ? 'text-error' : risk === 'MEDIUM' ? 'text-amber-600' : 'text-green-600'
-                    }`}>{risk}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Adverse Media — full width */}
-        <div className="col-span-1 md:col-span-2 bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
-          <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
-            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Adverse Media</h2>
-          </div>
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-surface-bright border-b border-outline-variant">
-              <tr>
-                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Source</th>
-                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Result</th>
-                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Last Checked</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant">
-              {media.map(({ source, result }) => (
-                <tr key={source} className="hover:bg-surface-container-low">
-                  <td className="px-stack-lg py-stack-md font-medium text-body-md">{source}</td>
-                  <td className="px-stack-lg py-stack-md">
-                    {result === 'flag'
-                      ? <span className="flex items-center gap-1 text-error font-bold">FLAG <span className="material-symbols-outlined text-[16px]">warning</span></span>
-                      : <span className="flex items-center gap-1 text-green-600 font-bold">CLEAN <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span></span>
-                    }
-                  </td>
-                  <td className="px-stack-lg py-stack-md text-right text-on-surface-variant text-body-sm">Today, {checkedAt}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-      </div>
     </div>
   )
 }
 
-// ─── Identity & Fraud Tab ─────────────────────────────────────────────────────
+// ─── Analysis Tab ─────────────────────────────────────────────────────────────
 
 function buildConsistencyRows(aiResults) {
   const fieldGroups = [
@@ -1334,10 +1220,6 @@ function FaceMatchCard({ aiResults, uploadedDocs, faceMatch, appId, onRefresh })
   const nationalIdKey = nationalIdIdx >= 0 ? (uploadedDocs[nationalIdIdx]?.key ?? null) : null
   const selfieKey    = selfieIdx    >= 0 ? (uploadedDocs[selfieIdx]?.key    ?? null) : null
 
-  const selfieResult = selfieIdx >= 0 ? aiResults[selfieIdx] : null
-  const liveness     = selfieResult?.qualityChecks?.livenessIndicator ?? 'na'
-  const faceVisible  = selfieResult?.qualityChecks?.faceVisible ?? 'na'
-
   const [passportUrl,  setPassportUrl]  = useState(null)
   const [nationalIdUrl, setNationalIdUrl] = useState(null)
   const [selfieUrl,    setSelfieUrl]    = useState(null)
@@ -1368,12 +1250,7 @@ function FaceMatchCard({ aiResults, uploadedDocs, faceMatch, appId, onRefresh })
     try {
       await lambdaClient.send(new InvokeCommand({
         FunctionName: awsConfig.faceMatchFunctionName,
-        Payload: new TextEncoder().encode(JSON.stringify({
-          appId,
-          selfieKey,
-          ...(passportKey   ? { passportKey }         : {}),
-          ...(nationalIdKey ? { idDocKey: nationalIdKey } : {}),
-        })),
+        Payload: new TextEncoder().encode(JSON.stringify({ appId })),
       }))
       onRefresh?.()
     } catch (err) {
@@ -1385,30 +1262,10 @@ function FaceMatchCard({ aiResults, uploadedDocs, faceMatch, appId, onRefresh })
 
   const hasSelfie = !!selfieKey
   const hasIdDoc  = !!(passportKey || nationalIdKey)
-  const passportMatch  = faceMatch?.passport
-  const nationalIdMatch = faceMatch?.nationalId
+  const passportMatch      = faceMatch?.passportVsSelfie
+  const nationalIdMatch    = faceMatch?.nationalIdVsSelfie
+  const crossDocMatch      = faceMatch?.passportVsNationalId
   const hasResults = !!(passportMatch || nationalIdMatch)
-
-  const livenessRow = liveness !== 'na' && (
-    <div className="flex justify-between items-center text-body-sm">
-      <span className="text-on-surface-variant">Liveness Check</span>
-      <span className={`font-bold flex items-center gap-1 ${liveness === 'pass' ? 'text-green-600' : liveness === 'fail' ? 'text-red-600' : 'text-amber-600'}`}>
-        <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>
-          {liveness === 'pass' ? 'check_circle' : liveness === 'fail' ? 'cancel' : 'warning'}
-        </span>
-        {liveness === 'pass' ? 'PASSED' : liveness === 'fail' ? 'FAILED' : 'WARN'}
-      </span>
-    </div>
-  )
-
-  const faceVisibleRow = faceVisible !== 'na' && (
-    <div className="flex justify-between items-center text-body-sm">
-      <span className="text-on-surface-variant">Face Visible</span>
-      <span className={`font-bold ${faceVisible === 'pass' ? 'text-green-600' : faceVisible === 'fail' ? 'text-red-600' : 'text-amber-600'}`}>
-        {faceVisible === 'pass' ? 'CONFIRMED' : faceVisible === 'fail' ? 'NOT DETECTED' : 'WARN'}
-      </span>
-    </div>
-  )
 
   return (
     <div className="bg-white rounded border border-outline-variant overflow-hidden">
@@ -1451,19 +1308,38 @@ function FaceMatchCard({ aiResults, uploadedDocs, faceMatch, appId, onRefresh })
                 </div>
               </div>
             )}
+            {crossDocMatch && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Passport vs National ID</p>
+                <div className="flex items-center gap-2">
+                  <CroppedFace imageUrl={passportUrl}   boundingBox={crossDocMatch.sourceBoundingBox} label="Passport"    accent="bg-primary" />
+                  <FaceMatchSimilarity similarity={crossDocMatch.similarity} status={crossDocMatch.status} />
+                  <CroppedFace imageUrl={nationalIdUrl} boundingBox={crossDocMatch.targetBoundingBox} label="National ID" accent="bg-secondary" />
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
-                {(passportUrl || nationalIdUrl)
-                  ? <img src={passportUrl ?? nationalIdUrl} alt="ID" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-outline">progress_activity</span></div>
-                }
-                <div className="absolute bottom-0 inset-x-0 bg-primary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">
-                  {passportKey ? 'Passport' : 'National ID'}
+            <div className={`grid gap-3 ${passportKey && nationalIdKey ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              {passportKey && (
+                <div className="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
+                  {passportUrl
+                    ? <img src={passportUrl} alt="Passport" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-outline">progress_activity</span></div>
+                  }
+                  <div className="absolute bottom-0 inset-x-0 bg-primary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">Passport</div>
                 </div>
-              </div>
+              )}
+              {nationalIdKey && (
+                <div className="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
+                  {nationalIdUrl
+                    ? <img src={nationalIdUrl} alt="National ID" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-outline">progress_activity</span></div>
+                  }
+                  <div className="absolute bottom-0 inset-x-0 bg-primary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">National ID</div>
+                </div>
+              )}
               <div className="aspect-square bg-surface-container rounded overflow-hidden border border-outline-variant relative">
                 {selfieUrl
                   ? <img src={selfieUrl} alt="Selfie" className="w-full h-full object-cover" />
@@ -1472,16 +1348,15 @@ function FaceMatchCard({ aiResults, uploadedDocs, faceMatch, appId, onRefresh })
                 <div className="absolute bottom-0 inset-x-0 bg-secondary/80 text-white text-[10px] py-1 px-2 uppercase font-bold tracking-widest">Selfie</div>
               </div>
             </div>
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              {passportKey && <span className="text-[10px] bg-surface-container px-2 py-0.5 rounded-full text-on-surface-variant">Passport ↔ Selfie</span>}
+              {nationalIdKey && <span className="text-[10px] bg-surface-container px-2 py-0.5 rounded-full text-on-surface-variant">National ID ↔ Selfie</span>}
+              {passportKey && nationalIdKey && <span className="text-[10px] bg-surface-container px-2 py-0.5 rounded-full text-on-surface-variant">Passport ↔ National ID</span>}
+            </div>
             <p className="text-body-sm text-on-surface-variant text-center">Click Run to compare faces using Rekognition</p>
           </div>
         )}
 
-        {(livenessRow || faceVisibleRow) && (
-          <div className="border-t border-outline-variant pt-3 space-y-stack-sm">
-            {livenessRow}
-            {faceVisibleRow}
-          </div>
-        )}
       </div>
     </div>
   )
@@ -1577,7 +1452,9 @@ function FraudSignalsCard({ aiResults }) {
   )
 }
 
-function AnalystObservationPanel({ rows, aiResults }) {
+function AnalystObservationPanel({ rows, aiResults, faceMatch, amlData }) {
+  const [open, setOpen] = useState(true)
+
   const mismatches = rows.filter(r => r.status === 'Mismatch')
   const failedChecks = aiResults.flatMap(r => {
     const doc = r?.documentType
@@ -1586,40 +1463,75 @@ function AnalystObservationPanel({ rows, aiResults }) {
       .filter(([, v]) => v === 'fail')
       .map(([k]) => ({ doc, check: k.replace(/([A-Z])/g, ' $1').toLowerCase().trim() }))
   })
+  const faceMatchConcerns = Object.values(faceMatch ?? {}).flatMap(m => {
+    if (!m || m.status === 'pass') return []
+    const label = `${m.sourceLabel} vs ${m.targetLabel}`
+    return m.status === 'fail'
+      ? [{ text: `Face match between <strong>${label}</strong> failed (${m.similarity}% similarity — below the 90% threshold).` }]
+      : [{ text: `Face match between <strong>${label}</strong> scored ${m.similarity}% — within the caution range (75–89%).` }]
+  })
+  const amlConcerns = amlData ? [
+    ...(amlData.sanctions ?? []).filter(s => s.result === 'hit').map(s => ({
+      text: `Potential sanctions match detected on <strong>${s.source}</strong>. Enhanced due diligence required.`,
+    })),
+    ...(amlData.pepHit ? [{ text: 'Potential <strong>Politically Exposed Person (PEP)</strong> match detected. Additional due diligence required.' }] : []),
+    ...(amlData.media ?? []).filter(m => m.result === 'flag').map(m => ({
+      text: `Adverse media flag raised by <strong>${m.source}</strong>.`,
+    })),
+    ...(amlData.jurisdictionFactors ?? []).filter(j => j.risk === 'HIGH').map(j => ({
+      text: `<strong>${j.label}</strong> is assessed as high risk.`,
+    })),
+  ] : []
 
-  if (!mismatches.length && !failedChecks.length) {
+  const hasIssues = mismatches.length || failedChecks.length || faceMatchConcerns.length || amlConcerns.length
+
+  if (!hasIssues) {
     return (
-      <div className="bg-surface-container rounded p-stack-lg border-l-4 border-green-500">
-        <div className="flex items-start gap-stack-md">
+      <div className="bg-surface-container rounded border-l-4 border-green-500">
+        <button type="button" onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center gap-stack-md p-stack-lg text-left">
           <span className="material-symbols-outlined text-green-600 text-[32px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
-          <div>
-            <h3 className="font-bold text-primary mb-unit">No Issues Detected</h3>
+          <h3 className="font-bold text-primary flex-1">No Issues Detected</h3>
+          <span className={`material-symbols-outlined text-on-surface-variant text-[20px] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>expand_more</span>
+        </button>
+        {open && (
+          <div className="px-stack-lg pb-stack-lg">
             <p className="text-body-sm text-on-surface-variant leading-relaxed">
-              All cross-document fields are consistent and no quality check failures were found. This case appears ready for final review.
+              All cross-document fields are consistent, quality checks passed, face match scores are within acceptable thresholds, and no AML concerns were identified. This case appears ready for final review.
             </p>
           </div>
-        </div>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="bg-surface-container rounded p-stack-lg border-l-4 border-secondary">
-      <div className="flex items-start gap-stack-md">
+    <div className="bg-surface-container rounded border-l-4 border-secondary">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-stack-md p-stack-lg text-left">
         <span className="material-symbols-outlined text-secondary text-[32px]" style={{ fontVariationSettings: '"FILL" 1' }}>lightbulb</span>
-        <div>
-          <h3 className="font-bold text-primary mb-unit">Analyst Observation Required</h3>
-          <p className="text-body-sm text-on-surface-variant leading-relaxed">
+        <h3 className="font-bold text-primary flex-1">Analyst Observation Required</h3>
+        <span className={`material-symbols-outlined text-on-surface-variant text-[20px] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>expand_more</span>
+      </button>
+      {open && (
+        <div className="px-stack-lg pb-stack-lg">
+          <ul className="text-body-sm text-on-surface-variant space-y-1 list-disc list-inside leading-relaxed">
             {mismatches.map((m, i) => (
-              <span key={i}>A <strong>{m.label}</strong> mismatch was detected across {m.sources}. </span>
+              <li key={`m-${i}`}>A <strong>{m.label}</strong> mismatch was detected across {m.sources}.</li>
             ))}
-            {failedChecks.slice(0, 2).map((f, i) => (
-              <span key={i}>A <strong>{f.check}</strong> check failed on the {f.doc}. </span>
+            {failedChecks.map((f, i) => (
+              <li key={`f-${i}`}>A <strong>{f.check}</strong> check failed on the {f.doc}.</li>
             ))}
-            Manual cross-referencing is strongly recommended before final approval.
-          </p>
+            {faceMatchConcerns.map((c, i) => (
+              <li key={`fm-${i}`} dangerouslySetInnerHTML={{ __html: c.text }} />
+            ))}
+            {amlConcerns.map((c, i) => (
+              <li key={`aml-${i}`} dangerouslySetInnerHTML={{ __html: c.text }} />
+            ))}
+            <li>Manual cross-referencing is strongly recommended before final approval.</li>
+          </ul>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -1628,14 +1540,15 @@ function IdentityFraudTab({ caseData, onRefresh }) {
   const aiResults = caseData?.aiResults ?? []
   const uploadedDocs = caseData?.documents ?? []
   const rows = buildConsistencyRows(aiResults)
-  const score = computeScore(aiResults, rows)
-  const mismatches = rows.filter(r => r.status === 'Mismatch').length
-  const overallStatus = mismatches === 0 && score >= 90 ? 'Clear' : score >= 60 ? 'Review Required' : 'High Risk'
+  const amlData = computeAMLData(caseData)
+  const { sanctions, pepHit, media, jurisdictionFactors, checkedAt } = amlData
 
   return (
     <div className="grid grid-cols-12 gap-6">
+      <div className="col-span-12">
+        <AnalystObservationPanel rows={rows} aiResults={aiResults} faceMatch={caseData?.faceMatch} amlData={amlData} />
+      </div>
       <div className="col-span-12 lg:col-span-4 space-y-6">
-        <IdentityStatusCard score={score} status={overallStatus} />
         <FaceMatchCard
           aiResults={aiResults}
           uploadedDocs={uploadedDocs}
@@ -1646,12 +1559,115 @@ function IdentityFraudTab({ caseData, onRefresh }) {
       </div>
       <div className="col-span-12 lg:col-span-8 space-y-6">
         <ConsistencyTable rows={rows} />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <DocumentFormatCard aiResults={aiResults} />
-          <ComplianceCard aiResults={aiResults} />
-          <FraudSignalsCard aiResults={aiResults} />
+        <FraudSignalsCard aiResults={aiResults} />
+      </div>
+
+      {/* AML Screening Sections */}
+      <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Sanctions Screening */}
+        <div className="bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
+          <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Sanctions Screening</h2>
+          </div>
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-surface-bright border-b border-outline-variant">
+              <tr>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Source</th>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Result</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant">
+              {sanctions.map(({ source, result }) => (
+                <tr key={source} className="hover:bg-surface-container-low">
+                  <td className="px-stack-lg py-stack-md font-medium text-body-md">{source}</td>
+                  <td className="px-stack-lg py-stack-md text-right">
+                    {result === 'hit'
+                      ? <span className="text-error font-bold">POTENTIAL HIT</span>
+                      : <span className="text-green-600 font-bold">NO MATCH</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <AnalystObservationPanel rows={rows} aiResults={aiResults} />
+
+        {/* PEP + Jurisdiction */}
+        <div className="space-y-6">
+          <div className="bg-white rounded border border-outline-variant p-stack-lg">
+            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase mb-stack-md">PEP Screening</h2>
+            <div className="flex items-center gap-stack-md">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${pepHit ? 'bg-error-container' : 'bg-green-100'}`}>
+                <span className={`material-symbols-outlined ${pepHit ? 'text-error' : 'text-green-600'}`}
+                  style={pepHit ? {} : { fontVariationSettings: '"FILL" 1' }}>
+                  {pepHit ? 'gpp_maybe' : 'person_check'}
+                </span>
+              </div>
+              <div>
+                <p className="text-body-md font-bold text-on-surface">Politically Exposed Person</p>
+                <p className={`text-label-md font-bold uppercase ${pepHit ? 'text-error' : 'text-green-600'}`}>
+                  {pepHit ? 'Potential Match' : 'No Match Detected'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
+            <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+              <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Jurisdiction Assessment</h2>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-surface-bright border-b border-outline-variant">
+                <tr>
+                  <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Factor</th>
+                  <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Risk Level</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant">
+                {jurisdictionFactors.map(({ label, risk }) => (
+                  <tr key={label} className="hover:bg-surface-container-low">
+                    <td className="px-stack-lg py-stack-md font-medium text-body-md">{label}</td>
+                    <td className={`px-stack-lg py-stack-md text-right font-bold ${
+                      risk === 'HIGH' ? 'text-error' : risk === 'MEDIUM' ? 'text-amber-600' : 'text-green-600'
+                    }`}>{risk}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Adverse Media — full width */}
+        <div className="col-span-1 md:col-span-2 bg-white rounded border border-outline-variant overflow-hidden shadow-sm">
+          <div className="bg-surface-container-low px-stack-md py-stack-sm border-b border-outline-variant">
+            <h2 className="text-label-md font-label-md text-on-surface-variant uppercase">Adverse Media</h2>
+          </div>
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-surface-bright border-b border-outline-variant">
+              <tr>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Source</th>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase">Result</th>
+                <th className="px-stack-lg py-stack-md text-label-md font-label-md text-on-surface-variant uppercase text-right">Last Checked</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant">
+              {media.map(({ source, result }) => (
+                <tr key={source} className="hover:bg-surface-container-low">
+                  <td className="px-stack-lg py-stack-md font-medium text-body-md">{source}</td>
+                  <td className="px-stack-lg py-stack-md">
+                    {result === 'flag'
+                      ? <span className="flex items-center gap-1 text-error font-bold">FLAG <span className="material-symbols-outlined text-[16px]">warning</span></span>
+                      : <span className="flex items-center gap-1 text-green-600 font-bold">CLEAN <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span></span>
+                    }
+                  </td>
+                  <td className="px-stack-lg py-stack-md text-right text-on-surface-variant text-body-sm">Today, {checkedAt}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
       </div>
     </div>
   )
@@ -1796,6 +1812,12 @@ function ProfileTab({ caseData, onProfileSaved }) {
       setSaved(true)
       setIsDirty(false)
       setResolvedFields(new Set(groups.flatMap(g => g.fields).map(f => f.key)))
+      logActivity(caseData.appId, {
+        type: 'user',
+        category: 'Profile Confirmed',
+        actor: currentUser.name,
+        description: `Customer profile reviewed and confirmed by ${currentUser.name}.`,
+      })
       onProfileSaved()
     } catch (err) {
       console.error('Failed to save profile:', err)
@@ -1897,7 +1919,7 @@ function ProfileTab({ caseData, onProfileSaved }) {
       <div className="flex items-center justify-between pt-2 pb-8">
         <p className="text-body-sm text-on-surface-variant">
           {confirmed && !isDirty
-            ? `Confirmed by ${caseData.profileData.confirmedBy} on ${new Date(caseData.profileData.confirmedAt).toLocaleDateString()}`
+            ? `Confirmed by ${caseData.profileData.confirmedBy} on ${new Date(caseData.profileData.confirmedAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}`
             : 'Profile must be confirmed before a decision can be made.'}
         </p>
         <button
@@ -1926,6 +1948,277 @@ function ProfileTab({ caseData, onProfileSaved }) {
             </>
           )}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Activity Tab ─────────────────────────────────────────────────────────────
+
+const MANUAL_CATEGORIES = [
+  'Note Added', 'Document Reviewed', 'Customer Contacted',
+  'Compliance Check', 'Risk Assessment', 'Internal Review', 'Status Updated', 'Other',
+]
+
+function formatEventTime(iso) {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  return `${date} • ${time}`
+}
+
+function getEventStyle(event) {
+  const cat = (event.category || '').toLowerCase()
+  if (cat.includes('init') || cat.includes('creat')) return { bg: 'bg-primary', text: 'text-white', icon: 'fiber_new', fill: false }
+  if (cat.includes('approv')) return { bg: 'bg-primary-container', text: 'text-on-primary-container', icon: 'check_circle', fill: true }
+  if (cat.includes('reject')) return { bg: 'bg-error-container', text: 'text-on-error-container', icon: 'cancel', fill: true }
+  if (cat.includes('upload')) return { bg: 'bg-secondary-container', text: 'text-on-secondary-container', icon: 'cloud_upload', fill: true }
+  if (cat.includes('aml') || cat.includes('screen') || cat.includes('compliance')) return { bg: 'bg-tertiary-fixed-dim', text: 'text-on-tertiary-fixed', icon: 'gavel', fill: false }
+  if (cat.includes('risk')) return { bg: 'bg-secondary-container', text: 'text-on-secondary-container', icon: 'smart_toy', fill: true }
+  if (cat.includes('status')) return { bg: 'bg-surface-container-highest', text: 'text-on-surface', icon: 'flag', fill: false }
+  if (event.type === 'system') return { bg: 'bg-secondary-container', text: 'text-on-secondary-container', icon: 'smart_toy', fill: true }
+  return { bg: 'bg-primary-container', text: 'text-on-primary-container', icon: 'person', fill: false }
+}
+
+const ACTIVITY_PAGE_SIZE = 10
+
+function ActivityTab({ appId }) {
+  const [events, setEvents] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [sort, setSort] = useState('newest')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [showAdd, setShowAdd] = useState(false)
+  const [newCategory, setNewCategory] = useState(MANUAL_CATEGORIES[0])
+  const [newDescription, setNewDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    dynamoClient.send(new GetCommand({ TableName: awsConfig.dynamoTableName, Key: { appId } }))
+      .then(r => setEvents(r.Item?.activityLog ?? []))
+      .catch(() => setEvents([]))
+  }, [appId])
+
+  const filtered = (events ?? [])
+    .filter(e => filter === 'all' || e.type === filter)
+    .filter(e => !search || `${e.description} ${e.category} ${e.actor}`.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => sort === 'newest'
+      ? new Date(b.timestamp) - new Date(a.timestamp)
+      : new Date(a.timestamp) - new Date(b.timestamp))
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ACTIVITY_PAGE_SIZE))
+  const paginated = filtered.slice((page - 1) * ACTIVITY_PAGE_SIZE, page * ACTIVITY_PAGE_SIZE)
+  const systemCount = (events ?? []).filter(e => e.type === 'system').length
+  const userCount = (events ?? []).filter(e => e.type === 'user').length
+
+  async function handleAddEntry() {
+    if (!newDescription.trim()) return
+    setSaving(true)
+    const entry = await logActivity(appId, {
+      type: 'user',
+      category: newCategory,
+      actor: currentUser.name,
+      description: newDescription.trim(),
+    })
+    setSaving(false)
+    if (entry) {
+      setEvents(prev => [...(prev ?? []), entry])
+      setNewDescription('')
+      setNewCategory(MANUAL_CATEGORIES[0])
+      setShowAdd(false)
+    }
+  }
+
+  if (events === null) {
+    return <div className="text-body-md text-on-surface-variant text-center py-12">Loading activity...</div>
+  }
+
+  return (
+    <div className="space-y-gutter">
+      <section className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm">
+
+        {/* Controls */}
+        <div className="p-stack-lg border-b border-outline-variant bg-surface-container-low flex flex-wrap justify-between items-center gap-gutter">
+          <div className="flex items-center gap-stack-md flex-wrap">
+            <div className="flex p-unit bg-surface-container-high rounded-lg">
+              {[['all', 'All Actions'], ['system', 'System Actions'], ['user', 'User Actions']].map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => { setFilter(val); setPage(1) }}
+                  className={`px-stack-md py-1.5 rounded-lg text-label-md transition-all ${filter === val ? 'bg-surface-container-lowest text-primary shadow-sm font-bold' : 'text-on-surface-variant font-medium hover:text-primary'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="h-8 w-px bg-outline-variant" />
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">filter_list</span>
+              <select
+                value={sort}
+                onChange={e => { setSort(e.target.value); setPage(1) }}
+                className="pl-9 pr-6 py-1.5 bg-transparent border-none text-label-md focus:ring-0 cursor-pointer text-on-surface"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-stack-md flex-wrap">
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+              <input
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                className="w-56 pl-10 pr-4 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary transition-all"
+                placeholder="Search events..."
+                type="text"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAdd(v => !v)}
+              className="flex items-center gap-2 px-gutter py-1.5 rounded-lg bg-primary-container text-on-primary-container font-bold text-label-md hover:bg-primary hover:text-on-primary transition-all active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_comment</span>
+              Add Manual Entry
+            </button>
+          </div>
+        </div>
+
+        {/* Add Entry Form */}
+        {showAdd && (
+          <div className="p-stack-lg border-b border-outline-variant bg-surface-container-low/50 flex flex-col gap-stack-md">
+            <div className="flex gap-stack-md flex-wrap items-end">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Category</label>
+                <select
+                  value={newCategory}
+                  onChange={e => setNewCategory(e.target.value)}
+                  className="px-3 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary"
+                >
+                  {MANUAL_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1 flex-1 min-w-[260px]">
+                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Description</label>
+                <textarea
+                  value={newDescription}
+                  onChange={e => setNewDescription(e.target.value)}
+                  rows={2}
+                  placeholder="Describe the action taken..."
+                  className="px-3 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm focus:ring-1 focus:ring-secondary resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-stack-sm justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowAdd(false); setNewDescription('') }}
+                className="px-4 py-1.5 text-label-md text-on-surface border border-outline-variant rounded-lg hover:bg-surface-container transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddEntry}
+                disabled={saving || !newDescription.trim()}
+                className="px-4 py-1.5 text-label-md bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-2"
+              >
+                {saving && (
+                  <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                Save Entry
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Timeline */}
+        <div className="p-margin-desktop relative">
+          {filtered.length === 0 ? (
+            <p className="text-body-md text-on-surface-variant text-center py-12">No activity events found.</p>
+          ) : (
+            <>
+              <div className="absolute left-[47px] top-10 bottom-10 w-[2px] bg-outline-variant opacity-30" />
+              <div className="space-y-stack-lg">
+                {paginated.map((event, idx) => {
+                  const s = getEventStyle(event)
+                  const isLast = idx === paginated.length - 1
+                  return (
+                    <div key={event.id ?? idx} className="relative flex gap-gutter items-start group">
+                      <div className={`z-10 w-[30px] h-[30px] shrink-0 rounded-full ${s.bg} flex items-center justify-center ring-4 ring-surface-container-lowest transition-transform group-hover:scale-110`}>
+                        <span
+                          className={`material-symbols-outlined text-[16px] ${s.text}`}
+                          style={s.fill ? { fontVariationSettings: '"FILL" 1' } : {}}
+                        >{s.icon}</span>
+                      </div>
+                      <div className={`flex-1 pb-stack-lg ${isLast ? '' : 'border-b border-outline-variant/30'}`}>
+                        <div className="flex justify-between items-start mb-unit">
+                          <div>
+                            <span className="text-label-md font-label-md text-primary uppercase tracking-wider block mb-0.5">{event.category}</span>
+                            <h3 className="text-body-lg font-bold text-on-surface">{event.actor}</h3>
+                          </div>
+                          <span className="text-mono-md font-mono-md text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded whitespace-nowrap ml-4">
+                            {formatEventTime(event.timestamp)}
+                          </span>
+                        </div>
+                        <p className="text-body-md text-on-surface-variant max-w-2xl">{event.description}</p>
+                        {event.type === 'system' && (
+                          <div className="mt-stack-sm">
+                            <span className="text-[10px] bg-secondary-container/10 text-on-secondary-container px-1.5 py-0.5 rounded border border-secondary-container/30 uppercase font-bold">Auto-Generated</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer stats */}
+        <div className="bg-surface-container px-margin-desktop py-stack-md border-t border-outline-variant flex justify-between items-center">
+          <div className="flex gap-gutter">
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">Total Events</span>
+              <span className="text-body-lg font-bold text-primary">{events.length}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">System Actions</span>
+              <span className="text-body-lg font-bold text-primary">{systemCount}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">Analyst Reviews</span>
+              <span className="text-body-lg font-bold text-primary">{userCount}</span>
+            </div>
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-stack-sm">
+              <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 hover:bg-surface-container-high rounded transition-colors disabled:opacity-30">
+                <span className="material-symbols-outlined">chevron_left</span>
+              </button>
+              <span className="text-label-md font-label-md text-on-surface">Page {page} of {totalPages}</span>
+              <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2 hover:bg-surface-container-high rounded transition-colors disabled:opacity-30">
+                <span className="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Compliance note */}
+      <div className="p-stack-lg bg-surface-container-high rounded-lg border-l-4 border-secondary flex items-start gap-stack-md">
+        <span className="material-symbols-outlined text-secondary">info</span>
+        <div>
+          <h4 className="text-body-md font-bold text-primary">Compliance Requirement</h4>
+          <p className="text-body-sm text-on-surface-variant">The activity trail is immutable. All entries are archived as per compliance regulations. Manual entries are attributed to your professional ID.</p>
+        </div>
       </div>
     </div>
   )

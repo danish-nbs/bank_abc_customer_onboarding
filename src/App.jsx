@@ -7,6 +7,7 @@ import BusinessCasePage from './pages/BusinessCasePage'
 import UploadDocumentsPage from './pages/UploadDocumentsPage'
 import ProcessingLoaderPage from './pages/ProcessingLoaderPage'
 import CaseDetailsPage from './pages/CaseDetailsPage'
+import CasesListPage from './pages/CasesListPage'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/cases/upload-documents" element={<UploadDocumentsPage />} />
         <Route path="/processing" element={<ProcessingLoaderPage />} />
         <Route path="/cases/overview" element={<CaseDetailsPage />} />
+        <Route path="/cases" element={<CasesListPage />} />
       </Routes>
     </BrowserRouter>
   )

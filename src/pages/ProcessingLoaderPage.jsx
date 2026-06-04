@@ -5,6 +5,7 @@ import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { InvokeCommand } from '@aws-sdk/client-lambda'
 import { s3Client, dynamoClient, lambdaClient } from '../lib/awsClients'
 import { awsConfig } from '../aws-config'
+import { logActivity } from '../lib/activityLogger'
 
 const STEPS = [
   { label: 'Ingesting Files',          icon: 'inbox'         },
@@ -55,6 +56,12 @@ export default function ProcessingLoaderPage() {
             ':ts': new Date().toISOString(),
           },
         }))
+        logActivity(appId, {
+          type: 'system',
+          category: 'Documents Uploaded',
+          actor: 'System',
+          description: `${uploadedDocs.length} document(s) uploaded and submitted for AI processing.`,
+        })
 
         // ── Step 1: Classifying Documents ────────────────────────────────────
         // Invoke Lambda and advance to step 2 after 3 seconds while it runs
@@ -70,10 +77,22 @@ export default function ProcessingLoaderPage() {
         // Stays here until Lambda completes (Lambda writes aiResults to DynamoDB)
         setStep(2)
         await lambdaPromise
+        logActivity(appId, {
+          type: 'system',
+          category: 'AI Processing Completed',
+          actor: 'System',
+          description: 'Documents classified and identity data extracted by AI pipeline.',
+        })
 
         // ── Step 3: Running Fraud Checks ─────────────────────────────────────
         setStep(3)
         await sleep(2500)
+        logActivity(appId, {
+          type: 'system',
+          category: 'Fraud Checks Completed',
+          actor: 'System',
+          description: 'Automated fraud screening and AML checks completed.',
+        })
 
         navigate('/cases/overview', { state: { appId, product } })
       } catch (err) {
