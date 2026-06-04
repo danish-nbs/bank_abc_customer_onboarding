@@ -4,7 +4,7 @@ import { currentUser } from '../data/mockData'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: 'dashboard', path: '/dashboard', match: p => p === '/dashboard' },
-  { label: 'Cases',     icon: 'folder_open', path: '/cases',   match: p => p.startsWith('/cases') },
+  { label: 'Cases',     icon: 'folder_open', path: '/cases',   match: p => p === '/cases' },
 ]
 
 export default function AppLayout({ children, contentClassName }) {
